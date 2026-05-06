@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { IconButton } from "../ui/IconButton";
-import { Screen } from "../ui/Screen";
-import { theme } from "../ui/theme";
+import { IconButton } from "@/components/common/IconButton";
+import { Screen } from "@/components/common/Screen";
+import { theme } from "@/constants/theme";
 
 export default function ProfileScreen() {
   return (

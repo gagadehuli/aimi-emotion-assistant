@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme } from "../ui/theme";
+import { theme } from "@/constants/theme";
 
 const tabTheme = {
   active: theme.colors.brand,

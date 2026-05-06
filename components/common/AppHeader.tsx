@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { StyleProp, Text, TextStyle, View, ViewStyle } from "react-native";
-import { theme } from "./theme";
+import { theme } from "@/constants/theme";
 
 type Props = {
   title: string;

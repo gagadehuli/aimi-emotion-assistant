@@ -1,25 +1,36 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { AppHeader } from "../ui/AppHeader";
-import { IconButton } from "../ui/IconButton";
-import { Screen } from "../ui/Screen";
-import { theme } from "../ui/theme";
+import { AppHeader } from "@/components/common/AppHeader";
+import { IconButton } from "@/components/common/IconButton";
+import { Screen } from "@/components/common/Screen";
+import { theme } from "@/constants/theme";
 
-const memories = [
+type Memory = {
+  id: string;
+  title: string;
+  time: string;
+  date: string;
+  content: string;
+};
+
+const memories: Memory[] = [
   {
+    id: "m_2026_04_25",
     title: "今天的情绪记录",
     time: "刚刚",
     date: "2026.04.25",
     content: "你说今天有点累，但还是想继续把 Aimi 做出来。",
   },
   {
+    id: "m_2026_04_24",
     title: "关于作品集",
     time: "昨天",
     date: "2026.04.24",
     content: "你希望这个 App 能成为投前端实习的核心项目。",
   },
   {
+    id: "m_2026_04_22",
     title: "关于 Aimi",
     time: "3天前",
     date: "2026.04.22",
@@ -30,8 +41,11 @@ const memories = [
 export default function HistoryScreen() {
   const router = useRouter();
 
-  function goToChat() {
-    router.push("/chat");
+  function openMemory(item: Memory) {
+    router.push({
+      pathname: "/chat",
+      params: { recordId: item.id, date: item.date, title: item.title },
+    });
   }
 
   function createNewChat() {
@@ -68,12 +82,12 @@ export default function HistoryScreen() {
           这里会沉淀你和 Aimi 的重要对话、情绪和生活片段。
         </Text>
 
-        {memories.map((item, index) => (
+        {memories.map((item) => (
           <TouchableOpacity
-            key={index}
+            key={item.id}
             style={styles.card}
             activeOpacity={0.72}
-            onPress={goToChat}
+            onPress={() => openMemory(item)}
           >
             <View style={styles.cardTop}>
               <View>

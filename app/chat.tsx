@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
@@ -10,8 +11,9 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { Screen } from "./ui/Screen";
-import { theme } from "./ui/theme";
+import { IconButton } from "@/components/common/IconButton";
+import { Screen } from "@/components/common/Screen";
+import { theme } from "@/constants/theme";
 export default function ChatScreen() {
   const { recordId, date, title } = useLocalSearchParams();
 
@@ -25,13 +27,23 @@ export default function ChatScreen() {
     >
       <Screen backgroundColor={theme.colors.bgWarm} style={styles.containerSafe} withHorizontalPadding={false}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.push("/(tabs)/history")}>
-            <Text style={styles.menu}>☰</Text>
-          </Pressable>
+          <IconButton onPress={() => router.push("/(tabs)/history")}>
+            <Ionicons
+              name="search-outline"
+              size={22}
+              color={theme.colors.brand}
+            />
+          </IconButton>
 
           <Text style={styles.logo}>Aimi</Text>
 
-          <View style={{ width: 32 }} />
+          <IconButton onPress={() => router.replace("/chat")}>
+            <Ionicons
+              name="create-outline"
+              size={22}
+              color={theme.colors.brand}
+            />
+          </IconButton>
         </View>
 
         <ScrollView style={styles.chatArea} showsVerticalScrollIndicator={false}>
@@ -145,10 +157,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-  },
-  menu: {
-    fontSize: 24,
-    color: "#A45E43",
   },
   logo: {
     fontSize: 18,

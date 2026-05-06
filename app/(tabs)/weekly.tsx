@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { AppHeader } from "../ui/AppHeader";
-import { IconButton } from "../ui/IconButton";
-import { Screen } from "../ui/Screen";
-import { theme } from "../ui/theme";
+import { AppHeader } from "@/components/common/AppHeader";
+import { IconButton } from "@/components/common/IconButton";
+import { Screen } from "@/components/common/Screen";
+import { theme } from "@/constants/theme";
 
 const bars = [
   { label: "一", height: 54, color: "#E8E8C8" },

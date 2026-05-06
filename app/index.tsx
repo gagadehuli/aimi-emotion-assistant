@@ -1,22 +1,26 @@
 import { router } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Screen } from "./ui/Screen";
-import { theme } from "./ui/theme";
+import { useEffect } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { theme } from "@/constants/theme";
+import { storage } from "@/storage";
 
-export default function WelcomeScreen() {
+export default function Index() {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const seen = await storage.getOnboardingSeen();
+      if (cancelled) return;
+      router.replace(seen ? "/chat" : "/onboarding");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <Screen backgroundColor={theme.colors.bgWarm} withHorizontalPadding={false}>
-      <View style={styles.container}>
-        <View style={styles.circle} />
-
-        <Text style={styles.title}>你好，我是 Aimi。</Text>
-        <Text style={styles.subtitle}>告诉我任何事。</Text>
-
-        <Pressable style={styles.button} onPress={() => router.replace("/chat")}>
-          <Text style={styles.buttonText}>进入</Text>
-        </Pressable>
-      </View>
-    </Screen>
+    <View style={styles.container}>
+      <ActivityIndicator color={theme.colors.brand} />
+    </View>
   );
 }
 
@@ -26,36 +30,5 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.bgWarm,
     alignItems: "center",
     justifyContent: "center",
-  },
-  circle: {
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: theme.colors.accent,
-    marginBottom: 90,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: "700",
-    color: theme.colors.text,
-    marginBottom: 18,
-  },
-  subtitle: {
-    fontSize: 20,
-    color: "#89766D",
-    marginBottom: 90,
-  },
-  button: {
-    width: 150,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: theme.colors.card,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buttonText: {
-    color: theme.colors.brandDeep,
-    fontSize: 22,
-    fontWeight: "600",
   },
 });
