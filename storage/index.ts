@@ -1,15 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+// 阶段 3 将在此处接入 expo-sqlite，
+// 暴露 chats / messages / mood_records / tree_posts / settings 的本地持久化接口。
+// 阶段 2 暂无持久化需求，此文件作为占位保留。
 
-const KEYS = {
-  ONBOARDING_SEEN: "aimi.onboarding.seen",
-} as const;
-
-export const storage = {
-  async getOnboardingSeen(): Promise<boolean> {
-    const v = await AsyncStorage.getItem(KEYS.ONBOARDING_SEEN);
-    return v === "1";
-  },
-  async setOnboardingSeen(seen: boolean): Promise<void> {
-    await AsyncStorage.setItem(KEYS.ONBOARDING_SEEN, seen ? "1" : "0");
-  },
-};
+export {};

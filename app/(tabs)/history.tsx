@@ -1,47 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { AppHeader } from "@/components/common/AppHeader";
 import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
-
-type Memory = {
-  id: string;
-  title: string;
-  time: string;
-  date: string;
-  content: string;
-};
-
-const memories: Memory[] = [
-  {
-    id: "m_2026_04_25",
-    title: "今天的情绪记录",
-    time: "刚刚",
-    date: "2026.04.25",
-    content: "你说今天有点累，但还是想继续把 Aimi 做出来。",
-  },
-  {
-    id: "m_2026_04_24",
-    title: "关于作品集",
-    time: "昨天",
-    date: "2026.04.24",
-    content: "你希望这个 App 能成为投前端实习的核心项目。",
-  },
-  {
-    id: "m_2026_04_22",
-    title: "关于 Aimi",
-    time: "3天前",
-    date: "2026.04.22",
-    content: "Aimi 不只是聊天工具，而是能记录、陪伴和整理情绪的助手。",
-  },
-];
+import { MOCK_HISTORY_LIST, type ChatSession } from "@/mocks";
 
 export default function HistoryScreen() {
   const router = useRouter();
 
-  function openMemory(item: Memory) {
+  function openMemory(item: ChatSession) {
     router.push({
       pathname: "/chat",
       params: { recordId: item.id, date: item.date, title: item.title },
@@ -53,8 +24,21 @@ export default function HistoryScreen() {
   }
 
   function openSearch() {
-    console.log("后面这里可以做搜索历史记录功能");
+    // 阶段 2 占位：搜索历史记录会在阶段 3 接入
   }
+
+  function swipeBackToChat() {
+    router.push("/chat");
+  }
+
+  const swipeBack = Gesture.Pan()
+    .activeOffsetX([-25, 9999])
+    .failOffsetY([-12, 12])
+    .onEnd((e) => {
+      if (e.translationX < -60 && e.velocityX < -50) {
+        runOnJS(swipeBackToChat)();
+      }
+    });
 
   return (
     <Screen backgroundColor={theme.colors.bg}>
@@ -62,82 +46,107 @@ export default function HistoryScreen() {
         title="历史记忆"
         left={
           <IconButton onPress={openSearch}>
-            <Ionicons name="search-outline" size={23} color={theme.colors.brand} />
+            <Ionicons
+              name="search-outline"
+              size={23}
+              color={theme.colors.brand}
+            />
           </IconButton>
         }
         right={
           <IconButton onPress={createNewChat}>
-            <Ionicons name="create-outline" size={23} color={theme.colors.brand} />
+            <Ionicons
+              name="create-outline"
+              size={23}
+              color={theme.colors.brand}
+            />
           </IconButton>
         }
       />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.bigTitle}>Aimi 记得这些</Text>
-        <Text style={styles.subtitle}>
-          这里会沉淀你和 Aimi 的重要对话、情绪和生活片段。
-        </Text>
-
-        {memories.map((item) => (
-          <TouchableOpacity
-            key={item.id}
-            style={styles.card}
-            activeOpacity={0.72}
-            onPress={() => openMemory(item)}
+      <GestureDetector gesture={swipeBack}>
+        <View style={styles.flex}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            <View style={styles.cardTop}>
-              <View>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardDate}>{item.date}</Text>
-              </View>
+            <Text style={styles.bigTitle}>Aimi 记得这些</Text>
+            <Text style={styles.subtitle}>
+              这里会沉淀你和 Aimi 的重要对话、情绪和生活片段。
+            </Text>
 
-              <Text style={styles.cardTime}>{item.time}</Text>
+            {MOCK_HISTORY_LIST.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.card}
+                activeOpacity={0.72}
+                onPress={() => openMemory(item)}
+              >
+                <View style={styles.cardTop}>
+                  <View>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardDate}>{item.date}</Text>
+                  </View>
+                  <Text style={styles.cardTime}>{item.time}</Text>
+                </View>
+
+                <Text style={styles.cardContent} numberOfLines={2}>
+                  {item.preview}
+                </Text>
+
+                <View style={styles.cardBottom}>
+                  <Text style={styles.continueText}>点击继续这段对话</Text>
+                  <Ionicons
+                    name="chevron-forward-outline"
+                    size={16}
+                    color={theme.colors.brand}
+                  />
+                </View>
+              </TouchableOpacity>
+            ))}
+
+            <View style={styles.swipeHintRow}>
+              <Ionicons
+                name="chevron-back-outline"
+                size={14}
+                color={theme.colors.textSubtle}
+              />
+              <Text style={styles.swipeHint}>左滑回到聊天</Text>
             </View>
-
-            <Text style={styles.cardContent}>{item.content}</Text>
-
-            <View style={styles.cardBottom}>
-              <Text style={styles.continueText}>点击继续这段对话</Text>
-              <Ionicons name="chevron-forward-outline" size={16} color="#B76B43" />
-            </View>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+          </ScrollView>
+        </View>
+      </GestureDetector>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    flex: 1,
-  },
+  flex: { flex: 1 },
+  scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 22,
     paddingTop: 36,
-    paddingBottom: 120,
+    paddingBottom: 140,
   },
   bigTitle: {
     fontSize: 28,
     fontWeight: "600",
-    color: "#B76B43",
+    color: theme.colors.brand,
     textAlign: "center",
   },
   subtitle: {
     marginTop: 12,
     fontSize: 14,
     lineHeight: 22,
-    color: "#7C7568",
+    color: theme.colors.textMuted,
     textAlign: "center",
   },
   card: {
     marginTop: 22,
     padding: 18,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.lg,
     shadowColor: "#000",
     shadowOpacity: 0.06,
     shadowRadius: 16,
@@ -152,34 +161,45 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#5E4E41",
+    color: theme.colors.text,
   },
   cardDate: {
     marginTop: 5,
     fontSize: 12,
-    color: "#B3A99A",
+    color: theme.colors.textSubtle,
   },
   cardTime: {
     fontSize: 12,
-    color: "#A89F90",
+    color: theme.colors.textSubtle,
   },
   cardContent: {
     marginTop: 12,
     fontSize: 14,
     lineHeight: 22,
-    color: "#736B60",
+    color: theme.colors.textMuted,
   },
   cardBottom: {
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "#F1E8D8",
+    borderTopColor: theme.colors.border,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   continueText: {
     fontSize: 12,
-    color: "#B76B43",
+    color: theme.colors.brand,
+  },
+  swipeHintRow: {
+    marginTop: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  swipeHint: {
+    fontSize: 11,
+    color: theme.colors.textSubtle,
   },
 });

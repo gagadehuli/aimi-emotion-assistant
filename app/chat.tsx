@@ -1,42 +1,136 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
+import { BreathingOrb } from "@/components/aimi/BreathingOrb";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { MessageList } from "@/components/chat/MessageList";
 import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
-export default function ChatScreen() {
-  const { recordId, date, title } = useLocalSearchParams();
+import {
+  MOCK_AI_REPLIES,
+  MOCK_CHAT_SESSIONS,
+  type ChatMessage,
+} from "@/mocks";
 
-  const isHistoryChat = Boolean(recordId);
+let localIdCounter = 1;
+function nextId() {
+  localIdCounter += 1;
+  return `local_${localIdCounter}`;
+}
+
+export default function ChatScreen() {
+  const params = useLocalSearchParams<{
+    recordId?: string;
+    date?: string;
+    title?: string;
+  }>();
+
+  const seedSession = useMemo(() => {
+    if (!params.recordId) return null;
+    return MOCK_CHAT_SESSIONS[params.recordId] ?? null;
+  }, [params.recordId]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    seedSession ? seedSession.messages : [],
+  );
   const [inputText, setInputText] = useState("");
 
+  useEffect(() => {
+    setMessages(seedSession ? seedSession.messages : []);
+    setInputText("");
+  }, [params.recordId, seedSession]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const orbOffset = useSharedValue(0);
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, () => {
+      orbOffset.value = withTiming(-50, {
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+      });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      orbOffset.value = withTiming(0, {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+      });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [orbOffset]);
+
+  const orbAnim = useAnimatedStyle(() => ({
+    transform: [{ translateY: orbOffset.value }],
+  }));
+
+  function send() {
+    const text = inputText.trim();
+    if (!text) return;
+    const userMsg: ChatMessage = { id: nextId(), role: "user", text };
+    setMessages((prev) => [...prev, userMsg]);
+    setInputText("");
+    requestAnimationFrame(() =>
+      scrollRef.current?.scrollToEnd({ animated: true }),
+    );
+    setTimeout(() => {
+      const reply =
+        MOCK_AI_REPLIES[Math.floor(Math.random() * MOCK_AI_REPLIES.length)];
+      const aiMsg: ChatMessage = {
+        id: nextId(),
+        role: "ai",
+        text: reply,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+      requestAnimationFrame(() =>
+        scrollRef.current?.scrollToEnd({ animated: true }),
+      );
+    }, 700);
+  }
+
+  const isHistory = Boolean(seedSession);
+  const isEmpty = messages.length === 0;
+
   return (
-    <KeyboardAvoidingView 
-      style={{ flex: 1 }} 
+    <KeyboardAvoidingView
+      style={styles.flex}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Screen backgroundColor={theme.colors.bgWarm} style={styles.containerSafe} withHorizontalPadding={false}>
+      <Screen
+        backgroundColor={theme.colors.bgWarm}
+        withHorizontalPadding={false}
+      >
         <View style={styles.header}>
           <IconButton onPress={() => router.push("/(tabs)/history")}>
             <Ionicons
-              name="search-outline"
-              size={22}
+              name="reorder-two-outline"
+              size={26}
               color={theme.colors.brand}
             />
           </IconButton>
-
           <Text style={styles.logo}>Aimi</Text>
-
           <IconButton onPress={() => router.replace("/chat")}>
             <Ionicons
               name="create-outline"
@@ -46,171 +140,89 @@ export default function ChatScreen() {
           </IconButton>
         </View>
 
-        <ScrollView style={styles.chatArea} showsVerticalScrollIndicator={false}>
-          {isHistoryChat ? (
-            <View style={styles.historyTitleBox}>
-              <Text style={styles.historyDate}>{date}</Text>
-              <Text style={styles.historyTitle}>{title}</Text>
-            </View>
-          ) : (
-            <View style={styles.circle} />
-          )}
-
-          <View style={styles.aiBubble}>
-            <Text style={styles.aiText}>
-              {isHistoryChat
-                ? "这是你当时和 Aimi 的对话记录。"
-                : "你好！我是 Aimi，今天很高兴见到你。在开始对话之前，你现在感觉怎么样？"}
-            </Text>
+        {isEmpty ? (
+          <View style={styles.emptyWrap}>
+            <Animated.View style={orbAnim}>
+              <BreathingOrb size={180} />
+            </Animated.View>
+            <Animated.Text style={[styles.emptyHint, orbAnim]}>
+              说点什么吧，{"\n"}Aimi 在听。
+            </Animated.Text>
           </View>
-
-          <View style={styles.userBubble}>
-            <Text style={styles.userText}>
-              {isHistoryChat
-                ? "老实说，那天我确实感觉压力有点大，脑子里有很多事情。"
-                : "老实说，我感觉有点不知所措。现在我脑子里有很多事情。"}
-            </Text>
-          </View>
-
-          <View style={styles.aiBubble}>
-            <Text style={styles.aiText}>
-              {isHistoryChat
-                ? "我记得你那天主要是在担心任务太多，但你也在努力把事情拆开处理。"
-                : "我理解。当生活没有按计划进行时，感到不知所措是很正常的。"}
-            </Text>
-          </View>
-        </ScrollView>
-        
-       
-        {!isHistoryChat && (
-          <View style={styles.inputContainer}>
-            <TextInput 
-              style={styles.input}
-              value={inputText} 
-              onChangeText={setInputText} 
-              placeholder="分享一下你的感受..."
-              placeholderTextColor="#9B8276"
-              multiline={true} // 允许多行输入
-            />
-            <Pressable 
-              style={[
-                styles.sendButton, 
-                !inputText.trim() && styles.sendButtonDisabled // 内容为空时触发禁用样式
-              ]}
-              disabled={!inputText.trim()}
-            >
-              <Text style={styles.sendButtonText}>发送</Text>
-            </Pressable>
-          </View>
+        ) : (
+          <MessageList
+            scrollRef={scrollRef}
+            messages={messages}
+            header={
+              isHistory ? (
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyDate}>{params.date}</Text>
+                  <Text style={styles.historyTitle}>{params.title}</Text>
+                  <Text style={styles.historyHint}>
+                    可以接着这段对话继续聊。
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
         )}
+
+        <ChatInput
+          value={inputText}
+          onChange={setInputText}
+          onSend={send}
+        />
       </Screen>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  containerSafe: {
-    paddingHorizontal: 20,
-  },
-  chatArea: {
-    flex: 1, // 核心：让 ScrollView 撑满头部和输入框之间的剩余空间
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end", // 让按钮和输入框底部对齐
-    paddingTop: 12,
-    paddingBottom: 32, // 核心：处理 iPhone 底部小白条的安全距离
-    backgroundColor: "#FAF7ED",
-    borderTopWidth: 1,
-    borderTopColor: "#EADDD7",
-  },
-  input: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 12,
-    minHeight: 40,
-    maxHeight: 100, // 核心：限制最大高度，超出会自动内部滚动
-    fontSize: 15,
-    color: "#5A342A",
-  },
-  sendButton: {
-    backgroundColor: "#A45E43",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginLeft: 12,
-    marginBottom: 2, 
-  },
-  sendButtonDisabled: {
-    backgroundColor: "#D3C4BE", // 禁用状态的颜色
-  },
-  sendButtonText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  flex: { flex: 1 },
   header: {
-    height: 48,
+    height: 50,
+    paddingHorizontal: theme.spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   logo: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "700",
-    color: "#A45E43",
+    color: theme.colors.brandDeep,
+    letterSpacing: 1,
   },
-  circle: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: "#F4B79E",
-    alignSelf: "center",
-    marginTop: 50,
-    marginBottom: 60,
-  },
-  historyTitleBox: {
+  emptyWrap: {
+    flex: 1,
     alignItems: "center",
-    marginTop: 44,
-    marginBottom: 46,
+    justifyContent: "center",
+  },
+  emptyHint: {
+    marginTop: 12,
+    fontSize: 14,
+    lineHeight: 22,
+    color: theme.colors.textMuted,
+    textAlign: "center",
+  },
+  historyHeader: {
+    alignItems: "center",
+    marginTop: 26,
+    marginBottom: 24,
+    paddingHorizontal: theme.spacing.xl,
   },
   historyDate: {
-    fontSize: 14,
-    color: "#9B8276",
-    marginBottom: 8,
+    fontSize: 13,
+    color: theme.colors.textMuted,
+    marginBottom: 6,
   },
   historyTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
-    color: "#5A342A",
+    color: theme.colors.text,
   },
-  aiBubble: {
-    backgroundColor: "#FFA07A",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 20,
-    alignSelf: "flex-start",
-    maxWidth: "88%",
-  },
-  aiText: {
-    color: "#5A342A",
-    fontSize: 15,
-    lineHeight: 24,
-  },
-  userBubble: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 20,
-    alignSelf: "flex-end",
-    maxWidth: "88%",
-  },
-  userText: {
-    color: "#5A342A",
-    fontSize: 15,
-    lineHeight: 24,
+  historyHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: theme.colors.textSubtle,
   },
 });

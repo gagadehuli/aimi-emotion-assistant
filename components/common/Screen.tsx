@@ -8,6 +8,7 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   backgroundColor?: string;
   withHorizontalPadding?: boolean;
+  topEdge?: boolean;
 };
 
 export function Screen({
@@ -15,13 +16,23 @@ export function Screen({
   style,
   backgroundColor = theme.colors.bg,
   withHorizontalPadding = false,
+  topEdge = true,
 }: Props) {
+  const edges = topEdge
+    ? (["top", "left", "right"] as const)
+    : (["left", "right"] as const);
   return (
-    <SafeAreaView style={[{ flex: 1, backgroundColor }, style]} edges={["top", "left", "right"]}>
-      <View style={[{ flex: 1, paddingHorizontal: withHorizontalPadding ? theme.spacing.xl : 0 }]}>
+    <SafeAreaView style={[{ flex: 1, backgroundColor }, style]} edges={edges}>
+      <View
+        style={[
+          {
+            flex: 1,
+            paddingHorizontal: withHorizontalPadding ? theme.spacing.xl : 0,
+          },
+        ]}
+      >
         {children}
       </View>
     </SafeAreaView>
   );
 }
-

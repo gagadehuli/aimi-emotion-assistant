@@ -32,14 +32,13 @@ Adding a new route file under `app/` will trigger Expo CLI to regenerate `.expo/
 
 Route layout:
 
-- `app/_layout.tsx` — root `Stack` wrapped in `SafeAreaProvider`, headers hidden globally.
-- `app/index.tsx` — first-launch dispatcher: reads `storage.getOnboardingSeen()` then `router.replace('/chat' | '/onboarding')`. Renders an `ActivityIndicator` while deciding.
-- `app/onboarding.tsx` — Welcome page. `BreathingOrb` + brand + "开始" button → sets onboarding flag → `/chat`.
-- `app/chat.tsx` — Chat screen. Header: `[search] Aimi [create]`. Search currently navigates to `/(tabs)/history` (Stage 2 placeholder until real search lands). Create resets to a fresh chat. Reads `recordId` / `date` / `title` via `useLocalSearchParams` to switch between live-chat mode and read-only history-replay mode. Real send / AI / persistence land in later stages.
-- `app/(tabs)/_layout.tsx` — Bottom tab bar (`history`, `weekly`, `treehole`, `profile`); `initialRouteName="history"`. Tab bar is positioned absolute with translucent background, so screens render under it — leave bottom padding when adding scrollable content.
-- `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId, date, title }` params.
+- `app/_layout.tsx` — root `Stack` wrapped in `GestureHandlerRootView` + `SafeAreaProvider`, headers hidden globally. The `GestureHandlerRootView` is required so any `<GestureDetector>` in the tree (e.g. history's left-swipe) actually receives gestures.
+- `app/index.tsx` — entry redirect: `<Redirect href="/chat" />`. There is no welcome / onboarding screen; users land directly in chat.
+- `app/chat.tsx` — Chat screen. Header: `[reorder-two] Aimi [create]`. Left icon (two short bars) navigates to `/(tabs)/history`. Right icon resets to a fresh chat. Reads `recordId` / `date` / `title` via `useLocalSearchParams` to seed an existing session. Three states share the same input box: empty (no messages → big centered `BreathingOrb`), chatting (messages + mock AI replies from `mocks/MOCK_AI_REPLIES`), history (seeded from `mocks/MOCK_CHAT_SESSIONS` + can keep typing). Keyboard show/hide listeners drive a reanimated `translateY` on the orb.
+- `app/(tabs)/_layout.tsx` — Bottom tab bar (`history`, `weekly`, `treehole`, `profile`); `initialRouteName="history"`. Tab bar is `position: 'absolute'` with translucent background, so screens render under it — leave bottom padding when adding scrollable content.
+- `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId, date, title }` params. A `react-native-gesture-handler` `Pan` detects a right-to-left swipe (translationX < -60 with leftward velocity, vertical motion ≥12px cancels) and pushes `/chat`.
 
-`chat.tsx` and `onboarding.tsx` live outside the `(tabs)` group, so the tab bar correctly does not appear on those screens.
+`chat.tsx` lives outside the `(tabs)` group, so the tab bar correctly does not appear on it.
 
 TS path alias: `@/*` → repo root (see `tsconfig.json`). Prefer `@/components/...`, `@/constants/theme`, `@/storage` over relative paths in new code.
 
@@ -47,16 +46,20 @@ TS path alias: `@/*` → repo root (see `tsconfig.json`). Prefer `@/components/.
 
 ```
 app/                       routes only
-  _layout.tsx, index.tsx, onboarding.tsx, chat.tsx
+  _layout.tsx, index.tsx, chat.tsx
   (tabs)/_layout.tsx, history.tsx, weekly.tsx, treehole.tsx, profile.tsx
 components/
   aimi/                    Aimi-brand visuals (BreathingOrb)
-  common/                  cross-screen shells (Screen, AppHeader, IconButton)
-  chat/                    (planned) MessageList / Bubble / Input
+  common/                  cross-screen shells (Screen, AppHeader, IconButton, PrimaryPill)
+  chat/                    MessageList, ChatInput
+  treehole/                CategoryTabs, DiscoveryGrid
+  profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList
 constants/
   theme.ts                 single source of design tokens
+mocks/
+  index.ts                 central mock data (chat sessions / treehole posts / profile / works / agents)
 storage/
-  index.ts                 storage interface (currently AsyncStorage-backed; SQLite in stage 3)
+  index.ts                 placeholder stub; stage 3 will fill in expo-sqlite-backed methods
 _disabled/                 quarantined files; do not delete or execute
 ```
 
@@ -79,4 +82,8 @@ Color values are still hard-coded inline in many older screens (e.g. `#FFA07A`, 
 
 ### Storage
 
-`storage/index.ts` exposes a small async interface (currently `getOnboardingSeen` / `setOnboardingSeen`). Implementation is `@react-native-async-storage/async-storage` for now. Stage 3 will replace the implementation with `expo-sqlite` while keeping the same interface — call sites should never touch AsyncStorage directly.
+`storage/index.ts` is currently an empty placeholder (`export {}`). Stage 3 will populate it with `expo-sqlite`-backed methods (chats / messages / mood records / tree posts / settings) and that is the only file UI code should ever touch for persistence. `@react-native-async-storage/async-storage` is still in `package.json` from the earlier onboarding-flag implementation; nothing imports it currently and it can be removed in stage 3 cleanup.
+
+### Mocks
+
+`mocks/index.ts` is the single source of stub data while stage 2 does not have a real database. Anywhere that will eventually read from SQLite — chat sessions / treehole posts / profile works / agents / favorites — currently imports its arrays from here. Keep new mock data centralized in this file so stage 3 can swap it for SQLite reads without spelunking through screens.

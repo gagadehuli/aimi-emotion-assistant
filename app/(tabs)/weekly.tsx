@@ -1,7 +1,5 @@
-import { Ionicons } from "@expo/vector-icons";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { AppHeader } from "@/components/common/AppHeader";
-import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
 
@@ -18,15 +16,7 @@ const bars = [
 export default function WeeklyScreen() {
   return (
     <Screen backgroundColor={theme.colors.bg}>
-      <AppHeader
-        title="周报"
-        left={
-          <IconButton>
-            <Ionicons name="menu-outline" size={24} color={theme.colors.brand} />
-          </IconButton>
-        }
-        right={<View style={styles.avatar} />}
-      />
+      <AppHeader title="周报" border={false} />
 
       <ScrollView
         style={styles.scroll}
@@ -84,23 +74,15 @@ export default function WeeklyScreen() {
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#5D6B6A",
-  },
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 18,
-    paddingTop: 38,
-    paddingBottom: 120,
+    paddingTop: 22,
+    paddingBottom: 140,
   },
   weekText: {
     fontSize: 12,
-    color: "#8F887B",
+    color: theme.colors.textSubtle,
     textAlign: "center",
   },
   title: {
@@ -108,22 +90,22 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     fontWeight: "500",
-    color: "#B76B43",
+    color: theme.colors.brand,
     textAlign: "center",
   },
   desc: {
     marginTop: 16,
     fontSize: 14,
     lineHeight: 22,
-    color: "#7D7669",
+    color: theme.colors.textMuted,
     textAlign: "center",
   },
   chartCard: {
-    marginTop: 86,
+    marginTop: 60,
     padding: 20,
     height: 250,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 32,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.xl,
     shadowColor: "#000",
     shadowOpacity: 0.07,
     shadowRadius: 18,
@@ -138,13 +120,13 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#9A5A3A",
+    color: theme.colors.brandDeep,
   },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
     backgroundColor: "#FFB083",
-    borderRadius: 999,
+    borderRadius: theme.radius.pill,
   },
   badgeText: {
     fontSize: 11,
@@ -170,10 +152,10 @@ const styles = StyleSheet.create({
   barLabel: {
     marginTop: 10,
     fontSize: 12,
-    color: "#9C9385",
+    color: theme.colors.textSubtle,
   },
   summaryRow: {
-    marginTop: 54,
+    marginTop: 36,
     flexDirection: "row",
     gap: 14,
   },
@@ -181,27 +163,25 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 116,
     padding: 18,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 28,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radius.lg,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-  smallEmoji: {
-    fontSize: 26,
-  },
+  smallEmoji: { fontSize: 26 },
   smallTitle: {
     marginTop: 10,
     fontSize: 13,
-    color: "#9A5A3A",
+    color: theme.colors.brandDeep,
     fontWeight: "600",
   },
   smallText: {
     marginTop: 6,
     fontSize: 12,
     lineHeight: 18,
-    color: "#7C7568",
+    color: theme.colors.textMuted,
   },
 });
