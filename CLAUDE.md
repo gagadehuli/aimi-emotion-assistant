@@ -67,7 +67,7 @@ _disabled/                 quarantined files; do not delete or execute
 
 All design tokens live in `constants/theme.ts`: `colors` (Aimi warm palette), `radius`, `spacing`, `typography`, `shadow`. Import as `import { theme } from "@/constants/theme"`. Do **not** create a second theme file or a parallel light/dark `Colors` palette.
 
-Color values are still hard-coded inline in many older screens (e.g. `#FFA07A`, `#9B8276` in `app/chat.tsx`). When refactoring, prefer pulling from `theme.colors` if a matching token exists; otherwise extend `theme.colors` rather than scattering hex codes.
+All app screens already route their colors through `theme.colors`. When you need a new color, extend `theme.colors` instead of inlining a hex literal. Inline `rgba(...)` is fine for one-off translucent overlays (e.g. cover-photo shading), since those don't belong in the shared palette.
 
 ### Screen pattern
 
@@ -82,7 +82,7 @@ Color values are still hard-coded inline in many older screens (e.g. `#FFA07A`, 
 
 ### Storage
 
-`storage/index.ts` is currently an empty placeholder (`export {}`). Stage 3 will populate it with `expo-sqlite`-backed methods (chats / messages / mood records / tree posts / settings) and that is the only file UI code should ever touch for persistence. `@react-native-async-storage/async-storage` is still in `package.json` from the earlier onboarding-flag implementation; nothing imports it currently and it can be removed in stage 3 cleanup.
+`storage/index.ts` is currently an empty placeholder (`export {}`). Stage 3 will populate it with `expo-sqlite`-backed methods (chats / messages / mood records / tree posts / settings) and that is the only file UI code should ever touch for persistence.
 
 ### Mocks
 
