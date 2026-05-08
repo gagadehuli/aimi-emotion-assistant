@@ -25,3 +25,14 @@ export type Setting = {
   key: string;
   value: string;
 };
+
+export type Mood = "calm" | "happy" | "tired" | "anxious" | "sad";
+
+export type MoodRecord = {
+  id: string;
+  sessionId: string | null;
+  mood: Mood;
+  intensity: number;
+  note: string | null;
+  createdAt: number;
+};

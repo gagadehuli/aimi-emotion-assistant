@@ -19,12 +19,13 @@ import Animated, {
 import { BreathingOrb } from "@/components/aimi/BreathingOrb";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
+import { MoodQuickRecord } from "@/components/chat/MoodQuickRecord";
 import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
 import { replyTo } from "@/services/ai";
 import { storage } from "@/storage";
-import type { ChatMessage } from "@/types/models";
+import type { ChatMessage, Mood } from "@/types/models";
 
 function deriveTitle(text: string): string {
   const trimmed = text.trim();
@@ -50,7 +51,20 @@ export default function ChatScreen() {
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [recordedMood, setRecordedMood] = useState<Mood | null>(null);
+  const [hasTodayRecord, setHasTodayRecord] = useState(false);
   const sendingRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const today = await storage.hasMoodRecordToday();
+      if (!cancelled) setHasTodayRecord(today);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recordId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +75,7 @@ export default function ChatScreen() {
       setHistoryDate(null);
       setInputText("");
       setIsThinking(false);
+      setRecordedMood(null);
       return;
     }
     (async () => {
@@ -78,6 +93,7 @@ export default function ChatScreen() {
       setHistoryTitle(result.session.title);
       setHistoryDate(formatDate(result.session.updatedAt));
       setInputText("");
+      setRecordedMood(null);
     })();
     return () => {
       cancelled = true;
@@ -155,8 +171,36 @@ export default function ChatScreen() {
     }
   }
 
+  async function pickMood(mood: Mood) {
+    if (recordedMood || hasTodayRecord) return;
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const note = lastUser ? lastUser.text.trim().slice(0, 30) : null;
+    setRecordedMood(mood); // 乐观更新，避免重复点击
+    setHasTodayRecord(true); // 同步置位，今天不再弹
+    try {
+      await storage.createMoodRecord({
+        sessionId: currentSessionId,
+        mood,
+        intensity: 3,
+        note,
+      });
+    } catch {
+      // 写盘失败回滚 UI 让用户能再点
+      setRecordedMood(null);
+      setHasTodayRecord(false);
+    }
+  }
+
   const isHistory = Boolean(recordId);
   const isEmpty = messages.length === 0 && !isThinking;
+  const lastMessage = messages[messages.length - 1];
+  // 今天还没记过，并且当前对话已有一轮 AI 回复时才弹
+  const showMoodCard =
+    !isEmpty &&
+    !isThinking &&
+    messages.length >= 2 &&
+    lastMessage?.role === "ai" &&
+    !hasTodayRecord;
 
   return (
     <KeyboardAvoidingView
@@ -210,6 +254,15 @@ export default function ChatScreen() {
                     可以接着这段对话继续聊。
                   </Text>
                 </View>
+              ) : null
+            }
+            footer={
+              showMoodCard || recordedMood !== null ? (
+                <MoodQuickRecord
+                  onPick={pickMood}
+                  recorded={recordedMood !== null}
+                  recordedMood={recordedMood}
+                />
               ) : null
             }
           />

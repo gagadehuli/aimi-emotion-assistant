@@ -3,6 +3,8 @@ import type {
   ChatMessage,
   ChatRole,
   ChatSession,
+  Mood,
+  MoodRecord,
 } from "@/types/models";
 import { getDb } from "./database";
 
@@ -23,6 +25,75 @@ type MessageRow = {
   created_at: number;
   source: string | null;
 };
+
+type MoodRow = {
+  id: string;
+  session_id: string | null;
+  mood: string;
+  intensity: number;
+  note: string | null;
+  created_at: number;
+};
+
+const VALID_MOODS: ReadonlySet<Mood> = new Set([
+  "calm",
+  "happy",
+  "tired",
+  "anxious",
+  "sad",
+]);
+
+function normalizeMood(s: string): Mood {
+  return VALID_MOODS.has(s as Mood) ? (s as Mood) : "calm";
+}
+
+function rowToMood(r: MoodRow): MoodRecord {
+  return {
+    id: r.id,
+    sessionId: r.session_id,
+    mood: normalizeMood(r.mood),
+    intensity: r.intensity,
+    note: r.note,
+    createdAt: r.created_at,
+  };
+}
+
+const MOOD_COLUMNS = "id, session_id, mood, intensity, note, created_at";
+
+function startOfThisWeek(now: number = Date.now()): number {
+  const d = new Date(now);
+  const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const offsetDays = day === 0 ? 6 : day - 1; // 距本周一过去几天
+  const monday = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate() - offsetDays,
+    0,
+    0,
+    0,
+    0,
+  );
+  return monday.getTime();
+}
+
+function endOfThisWeek(now: number = Date.now()): number {
+  return startOfThisWeek(now) + 7 * 86_400_000;
+}
+
+function startOfToday(now: number = Date.now()): number {
+  const d = new Date(now);
+  return new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    0,
+    0,
+    0,
+    0,
+  ).getTime();
+}
+
+export { endOfThisWeek, startOfThisWeek, startOfToday };
 
 function rowToSession(r: SessionRow): ChatSession {
   return {
@@ -193,4 +264,86 @@ export const storage = {
       [key, value],
     );
   },
+
+  async createMoodRecord(input: {
+    sessionId?: string | null;
+    mood: Mood;
+    intensity?: number;
+    note?: string | null;
+  }): Promise<MoodRecord> {
+    const db = await getDb();
+    const id = makeId("mr");
+    const now = Date.now();
+    const intensity = clampIntensity(input.intensity ?? 3);
+    const sessionId = input.sessionId ?? null;
+    const note = input.note ?? null;
+    await db.runAsync(
+      `INSERT INTO mood_records (id, session_id, mood, intensity, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?);`,
+      [id, sessionId, input.mood, intensity, note, now],
+    );
+    return {
+      id,
+      sessionId,
+      mood: input.mood,
+      intensity,
+      note,
+      createdAt: now,
+    };
+  },
+
+  async listMoodRecords(range?: {
+    since?: number;
+    until?: number;
+  }): Promise<MoodRecord[]> {
+    const db = await getDb();
+    const since = range?.since;
+    const until = range?.until;
+    if (since !== undefined && until !== undefined) {
+      const rows = await db.getAllAsync<MoodRow>(
+        `SELECT ${MOOD_COLUMNS}
+           FROM mood_records
+          WHERE created_at >= ? AND created_at < ?
+          ORDER BY created_at ASC;`,
+        [since, until],
+      );
+      return rows.map(rowToMood);
+    }
+    const rows = await db.getAllAsync<MoodRow>(
+      `SELECT ${MOOD_COLUMNS}
+         FROM mood_records
+         ORDER BY created_at DESC;`,
+    );
+    return rows.map(rowToMood);
+  },
+
+  async listMoodRecordsForWeek(now: number = Date.now()): Promise<MoodRecord[]> {
+    return this.listMoodRecords({
+      since: startOfThisWeek(now),
+      until: endOfThisWeek(now),
+    });
+  },
+
+  async hasMoodRecordToday(now: number = Date.now()): Promise<boolean> {
+    const db = await getDb();
+    const start = startOfToday(now);
+    const end = start + 86_400_000;
+    const row = await db.getFirstAsync<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM mood_records WHERE created_at >= ? AND created_at < ?;",
+      [start, end],
+    );
+    return (row?.n ?? 0) > 0;
+  },
+
+  async deleteMoodRecord(id: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync("DELETE FROM mood_records WHERE id = ?;", [id]);
+  },
 };
+
+function clampIntensity(n: number): number {
+  if (!Number.isFinite(n)) return 3;
+  if (n < 1) return 1;
+  if (n > 5) return 5;
+  return Math.round(n);
+}

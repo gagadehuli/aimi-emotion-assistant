@@ -14,10 +14,17 @@ type Props = {
   messages: ChatMessage[];
   scrollRef?: RefObject<ScrollView | null>;
   header?: ReactNode;
+  footer?: ReactNode;
   thinking?: boolean;
 };
 
-export function MessageList({ messages, scrollRef, header, thinking }: Props) {
+export function MessageList({
+  messages,
+  scrollRef,
+  header,
+  footer,
+  thinking,
+}: Props) {
   return (
     <ScrollView
       ref={scrollRef}
@@ -42,9 +49,13 @@ export function MessageList({ messages, scrollRef, header, thinking }: Props) {
       ))}
       {thinking ? (
         <View style={[styles.bubbleBase, styles.aiBubble, styles.thinkingBubble]}>
-          <ThinkingDots />
+          <View style={styles.thinkingRow}>
+            <Text style={styles.thinkingLabel}>正在听你说</Text>
+            <ThinkingDots />
+          </View>
         </View>
       ) : null}
+      {!thinking && footer ? footer : null}
     </ScrollView>
   );
 }
@@ -119,18 +130,28 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
   },
   thinkingBubble: {
-    paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  thinkingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  thinkingLabel: {
+    fontSize: 13,
+    color: theme.colors.text,
+    opacity: 0.75,
   },
   dotsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 5,
   },
   dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: theme.colors.text,
   },
 });

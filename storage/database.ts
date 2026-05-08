@@ -2,7 +2,7 @@ import * as SQLite from "expo-sqlite";
 import { SEED_SESSIONS } from "@/mocks";
 
 const DB_NAME = "aimi.db";
-// Current schema version: 3 (kept inline in migrate() so each step is self-contained)
+// Current schema version: 4 (kept inline in migrate() so each step is self-contained)
 const DAY_MS = 86_400_000;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -93,6 +93,15 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     await db.execAsync(`
       ALTER TABLE chat_messages ADD COLUMN source TEXT;
       PRAGMA user_version = 3;
+    `);
+  }
+  if (current < 4) {
+    // mood_records 表在 v1 已经建好；这一步只补 created_at 索引，
+    // Weekly 周报频繁按时间窗口扫，加索引避免全表 scan。
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_mood_records_created
+        ON mood_records(created_at DESC);
+      PRAGMA user_version = 4;
     `);
   }
 }

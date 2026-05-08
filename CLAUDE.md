@@ -37,6 +37,7 @@ Route layout:
 - `app/chat.tsx` — Chat screen. Header: `[reorder-two] Aimi [create]`. Left icon (two short bars) navigates to `/(tabs)/history`. Right icon resets to a fresh chat (`router.replace("/chat")`). Reads optional `recordId` via `useLocalSearchParams` and loads that session via `storage.getSession()`. Three states share the same input box: empty (no messages → big centered `BreathingOrb`), chatting (messages persisted via `storage.appendMessage`, mock AI replies from `MOCK_AI_REPLIES`), history (loaded session + can keep typing — appended messages persist back into the same session). On first send of a fresh chat, lazily creates a session whose title is the first user message trimmed to 12 chars + `…` (fallback `今天的对话`). Keyboard show/hide listeners drive a reanimated `translateY` on the orb.
 - `app/(tabs)/_layout.tsx` — Bottom tab bar (`history`, `weekly`, `treehole`, `profile`); `initialRouteName="history"`. Tab bar is `position: 'absolute'` with translucent background, so screens render under it — leave bottom padding when adding scrollable content.
 - `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId }` (chat then loads title/date from storage). Sessions list is read on focus via `storage.listSessions()`. A `react-native-gesture-handler` `Pan` detects a right-to-left swipe (translationX < -60 with leftward velocity, vertical motion ≥12px cancels) and pushes `/chat`.
+- `app/(tabs)/weekly.tsx` — "周报" tab. On focus reads `storage.listMoodRecordsForWeek()` and the week's chat messages, then aggregates: per-day buckets coloured by each day's dominant mood, the dominant mood across the week (drives both the description and the local Aimi suggestion template), and top keywords from a curated list (`KEYWORDS` in the file) counted against user messages. **No live AI call** — suggestions are local templates so opening the tab is free. Empty state ("这周还没有情绪记录") has a "去聊天" button that `router.replace("/chat")`.
 
 `chat.tsx` lives outside the `(tabs)` group, so the tab bar correctly does not appear on it.
 
@@ -51,14 +52,14 @@ app/                       routes only
 components/
   aimi/                    Aimi-brand visuals (BreathingOrb)
   common/                  cross-screen shells (Screen, AppHeader, IconButton, PrimaryPill)
-  chat/                    MessageList, ChatInput
+  chat/                    MessageList, ChatInput, MoodQuickRecord
   history/                 SessionActionSheet, RenameDialog
   treehole/                CategoryTabs, DiscoveryGrid
   profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList
 constants/
   theme.ts                 single source of design tokens
 types/
-  models.ts                ChatRole, AiSource, ChatMessage, ChatSession, Setting
+  models.ts                ChatRole, AiSource, ChatMessage, ChatSession, Setting, Mood, MoodRecord
 mocks/
   index.ts                 central mock data; SEED_SESSIONS feeds the first-launch seeder
 services/
@@ -94,15 +95,18 @@ All app screens already route their colors through `theme.colors`. When you need
 
 Public methods on `storage`:
 
-- `listSessions()` — chat sessions ordered by `updated_at DESC`
+- `listSessions()` — chat sessions ordered by pinned then `updated_at DESC`
 - `getSession(id)` — `{ session, messages }` or `null`
 - `createSession(title)` — returns the new `ChatSession`
-- `appendMessage(sessionId, role, text)` — also bumps `updated_at` and `last_preview` on the session
-- `deleteSession(id)` — cascades to messages
+- `appendMessage(sessionId, role, text, source?)` — also bumps `updated_at` and `last_preview` on the session
+- `renameSession(id, title)` / `setPinned(id, pinned)` / `deleteSession(id)`
+- `createMoodRecord({sessionId?, mood, intensity?, note?})` — `intensity` defaults to 3 and is clamped 1–5
+- `listMoodRecords({since?, until?})` / `listMoodRecordsForWeek(now?)` / `deleteMoodRecord(id)`
 - `wipeAll()` — `DELETE` from every data table and from `settings`, then re-inserts `settings.seeded='1'` so the seeder will not run again. Tables themselves are preserved.
 - `getSetting(key)` / `setSetting(key, value)`
+- `startOfThisWeek(now?)` / `endOfThisWeek(now?)` — exposed helpers; week boundaries are local-time Mon 00:00 → next Mon 00:00
 
-Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`, `settings`. Stage 3 only reads/writes the chat tables; the rest are reserved for stages 4–5.
+Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`, `settings`. Stages 3–4 use chat tables; stage 5A activates `mood_records`; `tree_posts` and `agents` are reserved.
 
 ### Mocks
 
@@ -118,7 +122,8 @@ Components:
 - `services/ai.ts` — only AI entry point for the app. `replyTo(history) → { text, source, level }`. Order: client safety mirror → no proxy / forced mock → POST to proxy → mock fallback on any error. Never throws.
 - `services/safety.ts` — client-side mirror of the `crisis` and `high` levels. If the user types a self-harm phrase and the backend is unreachable, the app still returns a safety template instead of a random mock line. Templates and patterns must stay in sync with `server/src/safety.ts`.
 - `app/chat.tsx` — calls `replyTo([...messages, userMsg])`, persists the AI message via `storage.appendMessage(sid, "ai", text, source)`. Shows three pulsing dots in `<MessageList thinking>` while waiting; disables `<ChatInput>` so users can't double-send.
-- `MessageList` — when an AI message has `source === "mock"`, renders a tiny "本地回复" gray label in the bubble corner. `safety` and `gemini` replies show no badge.
+- `MessageList` — when an AI message has `source === "mock"`, renders a tiny "本地回复" gray label in the bubble corner. `safety` and `gemini` replies show no badge. The thinking bubble shows "正在听你说" + 3 pulsing dots while waiting on `replyTo`.
+- `MoodQuickRecord` — small card rendered as MessageList footer **after** the user has at least one user→AI exchange in the current chat instance. Lets the user tap one of 5 mood chips (calm/happy/tired/anxious/sad). On tap calls `storage.createMoodRecord({sessionId, mood, intensity: 3, note: lastUserText.slice(0,30)})`, then collapses to "已记录到本周情绪". One recording per chat-screen visit; resets when the user enters a different session or `replace("/chat")`s into a fresh one.
 
 Safety levels (server-side classifier is authoritative):
 
