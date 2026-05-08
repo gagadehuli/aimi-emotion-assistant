@@ -1,4 +1,9 @@
-import type { ChatMessage, ChatRole, ChatSession } from "@/types/models";
+import type {
+  AiSource,
+  ChatMessage,
+  ChatRole,
+  ChatSession,
+} from "@/types/models";
 import { getDb } from "./database";
 
 type SessionRow = {
@@ -16,6 +21,7 @@ type MessageRow = {
   role: string;
   text: string;
   created_at: number;
+  source: string | null;
 };
 
 function rowToSession(r: SessionRow): ChatSession {
@@ -36,7 +42,13 @@ function rowToMessage(r: MessageRow): ChatMessage {
     role: r.role === "ai" ? "ai" : "user",
     text: r.text,
     createdAt: r.created_at,
+    source: normalizeSource(r.source),
   };
+}
+
+function normalizeSource(s: string | null): AiSource | null {
+  if (s === "gemini" || s === "safety" || s === "mock") return s;
+  return null;
 }
 
 function makeId(prefix: string): string {
@@ -50,6 +62,8 @@ const SESSION_COLUMNS =
 
 const SESSION_ORDER =
   "ORDER BY (pinned_at IS NULL), pinned_at DESC, updated_at DESC";
+
+const MESSAGE_COLUMNS = "id, session_id, role, text, created_at, source";
 
 export const storage = {
   async listSessions(): Promise<ChatSession[]> {
@@ -74,7 +88,7 @@ export const storage = {
     );
     if (!sRow) return null;
     const mRows = await db.getAllAsync<MessageRow>(
-      `SELECT id, session_id, role, text, created_at
+      `SELECT ${MESSAGE_COLUMNS}
          FROM chat_messages
         WHERE session_id = ?
         ORDER BY created_at ASC;`,
@@ -109,14 +123,15 @@ export const storage = {
     sessionId: string,
     role: ChatRole,
     text: string,
+    source: AiSource | null = null,
   ): Promise<ChatMessage> {
     const db = await getDb();
     const id = makeId("m");
     const now = Date.now();
     await db.runAsync(
-      `INSERT INTO chat_messages (id, session_id, role, text, created_at)
-       VALUES (?, ?, ?, ?, ?);`,
-      [id, sessionId, role, text, now],
+      `INSERT INTO chat_messages (id, session_id, role, text, created_at, source)
+       VALUES (?, ?, ?, ?, ?, ?);`,
+      [id, sessionId, role, text, now, source],
     );
     await db.runAsync(
       `UPDATE chat_sessions
@@ -124,7 +139,7 @@ export const storage = {
         WHERE id = ?;`,
       [now, text, sessionId],
     );
-    return { id, sessionId, role, text, createdAt: now };
+    return { id, sessionId, role, text, createdAt: now, source };
   },
 
   async renameSession(id: string, title: string): Promise<void> {

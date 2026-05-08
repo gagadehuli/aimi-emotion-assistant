@@ -52,17 +52,22 @@ components/
   aimi/                    Aimi-brand visuals (BreathingOrb)
   common/                  cross-screen shells (Screen, AppHeader, IconButton, PrimaryPill)
   chat/                    MessageList, ChatInput
+  history/                 SessionActionSheet, RenameDialog
   treehole/                CategoryTabs, DiscoveryGrid
   profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList
 constants/
   theme.ts                 single source of design tokens
 types/
-  models.ts                ChatRole, ChatMessage, ChatSession, Setting
+  models.ts                ChatRole, AiSource, ChatMessage, ChatSession, Setting
 mocks/
   index.ts                 central mock data; SEED_SESSIONS feeds the first-launch seeder
+services/
+  ai.ts                    proxy/mock dispatcher; only AI entry point for screens
+  safety.ts                client-side mirror of crisis/high classifier (offline fallback)
 storage/
   index.ts                 public async API; UI imports only from here
   database.ts              expo-sqlite singleton, migrations, seeder
+server/                    Node proxy (excluded from Expo lint/tsc); see server/README.md
 _disabled/                 quarantined files; do not delete or execute
 ```
 
@@ -101,4 +106,34 @@ Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`
 
 ### Mocks
 
-`mocks/index.ts` is the single source of stub data while later stages do not yet have real backends. `SEED_SESSIONS` is consumed *only* by the database seeder on first launch. The other arrays — `MOCK_AI_REPLIES`, `MOCK_TREEHOLE_POSTS`, `TREEHOLE_CATEGORIES`, `MOCK_PROFILE`, `MOCK_WORKS`, `MOCK_FAVORITES`, `MOCK_AGENTS` — are read directly by their respective screens and will be migrated into SQLite when those screens get rebuilt in later stages. UI screens must not import `SEED_SESSIONS` directly; they go through `storage`.
+`mocks/index.ts` is the single source of stub data while later stages do not yet have real backends. `SEED_SESSIONS` is consumed *only* by the database seeder on first launch. The other arrays — `MOCK_AI_REPLIES`, `MOCK_TREEHOLE_POSTS`, `TREEHOLE_CATEGORIES`, `MOCK_PROFILE`, `MOCK_WORKS`, `MOCK_FAVORITES`, `MOCK_AGENTS` — are read directly by their respective screens and will be migrated into SQLite when those screens get rebuilt in later stages. UI screens must not import `SEED_SESSIONS` directly; they go through `storage`. `MOCK_AI_REPLIES` is now also the **AI fallback** when the proxy backend is unreachable — see "AI integration" below.
+
+### AI integration
+
+Aimi never calls Gemini directly from the device. The Expo app talks to a small Node proxy (`server/`); the proxy holds the Gemini API key, runs safety classification, and forwards normal/medium messages to Gemini. The mobile bundle never sees the key.
+
+Components:
+
+- `server/` — TypeScript + Express + tsx. Endpoints `GET /api/health`, `POST /api/chat`. Reads `GEMINI_API_KEY`, `GEMINI_MODEL`, `PORT`, `ALLOWED_ORIGINS` from `server/.env` (gitignored). The model name is **always read from env**; never hardcoded in source. Default model in `.env.example` is `gemini-2.5-flash` — change `.env` to swap models without touching code.
+- `services/ai.ts` — only AI entry point for the app. `replyTo(history) → { text, source, level }`. Order: client safety mirror → no proxy / forced mock → POST to proxy → mock fallback on any error. Never throws.
+- `services/safety.ts` — client-side mirror of the `crisis` and `high` levels. If the user types a self-harm phrase and the backend is unreachable, the app still returns a safety template instead of a random mock line. Templates and patterns must stay in sync with `server/src/safety.ts`.
+- `app/chat.tsx` — calls `replyTo([...messages, userMsg])`, persists the AI message via `storage.appendMessage(sid, "ai", text, source)`. Shows three pulsing dots in `<MessageList thinking>` while waiting; disables `<ChatInput>` so users can't double-send.
+- `MessageList` — when an AI message has `source === "mock"`, renders a tiny "本地回复" gray label in the bubble corner. `safety` and `gemini` replies show no badge.
+
+Safety levels (server-side classifier is authoritative):
+
+| Level | Trigger examples | Server behavior |
+|---|---|---|
+| `crisis` | "我现在就要…", "我马上要自杀" | Fixed crisis template (with hotlines + 120). Gemini never called. |
+| `high` | "不想活", "想死", "想消失" | Fixed high-risk template (with 400-161-9995). Gemini never called. |
+| `medium` | "撑不住", "一直睡不好" | Gemini with `SYSTEM_PROMPT_GENTLE` (more careful tone). |
+| `normal` | everything else | Gemini with `SYSTEM_PROMPT_NORMAL`. |
+
+Environment variables:
+
+- Frontend (`.env` at project root): only `EXPO_PUBLIC_AI_PROXY_URL` (your LAN-IP backend) and `EXPO_PUBLIC_AI_PROVIDER` (`proxy` or `mock`). `EXPO_PUBLIC_*` is bundled into the client and is therefore **public** — never put a Gemini key here.
+- Backend (`server/.env`): `GEMINI_API_KEY`, `GEMINI_MODEL`, `PORT`, `ALLOWED_ORIGINS`.
+
+Both `.env` files are gitignored. `*.example` files are committed and contain only placeholders.
+
+Local dev: `cd server && npm run dev` listens on `0.0.0.0:8787`. Find your Windows LAN IPv4 with `ipconfig | Select-String "IPv4"`, set `EXPO_PUBLIC_AI_PROXY_URL=http://<that-ip>:8787` in the root `.env`, run `npx expo start --clear`. `EXPO_PUBLIC_*` are compile-time constants — restarting Expo with `--clear` is required after changing them.

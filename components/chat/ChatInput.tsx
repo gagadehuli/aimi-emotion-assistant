@@ -6,11 +6,12 @@ type Props = {
   value: string;
   onChange: (s: string) => void;
   onSend: () => void;
+  disabled?: boolean;
 };
 
-export function ChatInput({ value, onChange, onSend }: Props) {
+export function ChatInput({ value, onChange, onSend, disabled }: Props) {
   const insets = useSafeAreaInsets();
-  const canSend = value.trim().length > 0;
+  const canSend = !disabled && value.trim().length > 0;
   return (
     <View
       style={[
@@ -25,6 +26,7 @@ export function ChatInput({ value, onChange, onSend }: Props) {
         placeholder="分享一下你的感受..."
         placeholderTextColor={theme.colors.textSubtle}
         multiline
+        editable={!disabled}
       />
       <Pressable
         onPress={canSend ? onSend : undefined}

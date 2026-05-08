@@ -22,13 +22,9 @@ import { MessageList } from "@/components/chat/MessageList";
 import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
-import { MOCK_AI_REPLIES } from "@/mocks";
+import { replyTo } from "@/services/ai";
 import { storage } from "@/storage";
 import type { ChatMessage } from "@/types/models";
-
-function pickReply() {
-  return MOCK_AI_REPLIES[Math.floor(Math.random() * MOCK_AI_REPLIES.length)];
-}
 
 function deriveTitle(text: string): string {
   const trimmed = text.trim();
@@ -53,6 +49,7 @@ export default function ChatScreen() {
   const [historyTitle, setHistoryTitle] = useState<string | null>(null);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
   const sendingRef = useRef(false);
 
   useEffect(() => {
@@ -63,6 +60,7 @@ export default function ChatScreen() {
       setHistoryTitle(null);
       setHistoryDate(null);
       setInputText("");
+      setIsThinking(false);
       return;
     }
     (async () => {
@@ -136,24 +134,29 @@ export default function ChatScreen() {
         scrollRef.current?.scrollToEnd({ animated: true }),
       );
 
-      setTimeout(async () => {
-        try {
-          const aiMsg = await storage.appendMessage(sid!, "ai", pickReply());
-          setMessages((prev) => [...prev, aiMsg]);
-          requestAnimationFrame(() =>
-            scrollRef.current?.scrollToEnd({ animated: true }),
-          );
-        } catch {
-          // 阶段 4 真实接 AI 时再补错误兜底
-        }
-      }, 700);
+      setIsThinking(true);
+      try {
+        const reply = await replyTo([...messages, userMsg]);
+        const aiMsg = await storage.appendMessage(
+          sid,
+          "ai",
+          reply.text,
+          reply.source,
+        );
+        setMessages((prev) => [...prev, aiMsg]);
+        requestAnimationFrame(() =>
+          scrollRef.current?.scrollToEnd({ animated: true }),
+        );
+      } finally {
+        setIsThinking(false);
+      }
     } finally {
       sendingRef.current = false;
     }
   }
 
   const isHistory = Boolean(recordId);
-  const isEmpty = messages.length === 0;
+  const isEmpty = messages.length === 0 && !isThinking;
 
   return (
     <KeyboardAvoidingView
@@ -195,6 +198,7 @@ export default function ChatScreen() {
           <MessageList
             scrollRef={scrollRef}
             messages={messages}
+            thinking={isThinking}
             header={
               isHistory && historyTitle ? (
                 <View style={styles.historyHeader}>
@@ -211,7 +215,12 @@ export default function ChatScreen() {
           />
         )}
 
-        <ChatInput value={inputText} onChange={setInputText} onSend={send} />
+        <ChatInput
+          value={inputText}
+          onChange={setInputText}
+          onSend={send}
+          disabled={isThinking}
+        />
       </Screen>
     </KeyboardAvoidingView>
   );

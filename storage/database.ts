@@ -2,7 +2,7 @@ import * as SQLite from "expo-sqlite";
 import { SEED_SESSIONS } from "@/mocks";
 
 const DB_NAME = "aimi.db";
-// Current schema version: 2 (kept inline in migrate() so each step is self-contained)
+// Current schema version: 3 (kept inline in migrate() so each step is self-contained)
 const DAY_MS = 86_400_000;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -87,6 +87,12 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     await db.execAsync(`
       ALTER TABLE chat_sessions ADD COLUMN pinned_at INTEGER;
       PRAGMA user_version = 2;
+    `);
+  }
+  if (current < 3) {
+    await db.execAsync(`
+      ALTER TABLE chat_messages ADD COLUMN source TEXT;
+      PRAGMA user_version = 3;
     `);
   }
 }
