@@ -1,82 +1,69 @@
 import { theme } from "@/constants/theme";
+import type { ChatRole } from "@/types/models";
 
-export type ChatRole = "user" | "ai";
-
-export type ChatMessage = {
-  id: string;
+export type SeedMessage = {
   role: ChatRole;
   text: string;
 };
 
-export type ChatSession = {
+export type SeedSession = {
   id: string;
   title: string;
-  date: string;
-  time: string;
-  preview: string;
-  messages: ChatMessage[];
+  daysAgo: number;
+  messages: SeedMessage[];
 };
 
-export const MOCK_CHAT_SESSIONS: Record<string, ChatSession> = {
-  m_2026_04_25: {
+export const SEED_SESSIONS: SeedSession[] = [
+  {
     id: "m_2026_04_25",
     title: "今天的情绪记录",
-    date: "2026.04.25",
-    time: "刚刚",
-    preview: "你说今天有点累，但还是想继续把 Aimi 做出来。",
+    daysAgo: 0,
     messages: [
-      { id: "1", role: "ai", text: "今天过得怎么样？想不想跟我聊聊？" },
-      { id: "2", role: "user", text: "有点累，不过还是想继续把 Aimi 做出来。" },
+      { role: "ai", text: "今天过得怎么样？想不想跟我聊聊？" },
+      { role: "user", text: "有点累，不过还是想继续把 Aimi 做出来。" },
       {
-        id: "3",
         role: "ai",
         text: "你已经一边累一边在前进了，这本身就很厉害。需要我帮你把今晚要做的事情排个顺序吗？",
       },
-      { id: "4", role: "user", text: "嗯，先把欢迎页和聊天页的视觉骨架收一下。" },
-      { id: "5", role: "ai", text: "好，那我帮你先记下来。明天早上想从这件事接着开始吗？" },
+      { role: "user", text: "嗯，先把欢迎页和聊天页的视觉骨架收一下。" },
+      {
+        role: "ai",
+        text: "好，那我帮你先记下来。明天早上想从这件事接着开始吗？",
+      },
     ],
   },
-  m_2026_04_24: {
+  {
     id: "m_2026_04_24",
     title: "关于作品集",
-    date: "2026.04.24",
-    time: "昨天",
-    preview: "你希望这个 App 能成为投前端实习的核心项目。",
+    daysAgo: 1,
     messages: [
-      { id: "1", role: "user", text: "我想把 Aimi 做成简历里最能打的项目。" },
+      { role: "user", text: "我想把 Aimi 做成简历里最能打的项目。" },
       {
-        id: "2",
         role: "ai",
         text: "听起来你对它已经有了具体的期待。最希望面试官从这个项目看到你哪一面？",
       },
-      { id: "3", role: "user", text: "做产品的能力，不只是写代码。" },
+      { role: "user", text: "做产品的能力，不只是写代码。" },
       {
-        id: "4",
         role: "ai",
         text: "嗯，那我们一起把「为什么做 Aimi」这条主线想清楚，会比堆功能更打动人。",
       },
     ],
   },
-  m_2026_04_22: {
+  {
     id: "m_2026_04_22",
     title: "关于 Aimi",
-    date: "2026.04.22",
-    time: "3天前",
-    preview: "Aimi 不只是聊天工具，而是能记录、陪伴和整理情绪的助手。",
+    daysAgo: 3,
     messages: [
-      { id: "1", role: "user", text: "我希望 Aimi 不止是聊天工具。" },
-      { id: "2", role: "ai", text: "嗯，你想让它替你记住什么？" },
-      { id: "3", role: "user", text: "那些没人愿意听的小情绪。" },
+      { role: "user", text: "我希望 Aimi 不止是聊天工具。" },
+      { role: "ai", text: "嗯，你想让它替你记住什么？" },
+      { role: "user", text: "那些没人愿意听的小情绪。" },
       {
-        id: "4",
         role: "ai",
         text: "好，我会替你把它们一点点收下来。等你某天想回头看的时候，它们会还在。",
       },
     ],
   },
-};
-
-export const MOCK_HISTORY_LIST: ChatSession[] = Object.values(MOCK_CHAT_SESSIONS);
+];
 
 export const MOCK_AI_REPLIES: string[] = [
   "我听到了。你愿意多说一点这件事让你最在意的部分吗？",

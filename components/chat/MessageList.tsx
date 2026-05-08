@@ -1,7 +1,7 @@
 import { ReactNode, RefObject } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { theme } from "@/constants/theme";
-import type { ChatMessage } from "@/mocks";
+import type { ChatMessage } from "@/types/models";
 
 type Props = {
   messages: ChatMessage[];

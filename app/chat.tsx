@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -22,39 +22,69 @@ import { MessageList } from "@/components/chat/MessageList";
 import { IconButton } from "@/components/common/IconButton";
 import { Screen } from "@/components/common/Screen";
 import { theme } from "@/constants/theme";
-import {
-  MOCK_AI_REPLIES,
-  MOCK_CHAT_SESSIONS,
-  type ChatMessage,
-} from "@/mocks";
+import { MOCK_AI_REPLIES } from "@/mocks";
+import { storage } from "@/storage";
+import type { ChatMessage } from "@/types/models";
 
-let localIdCounter = 1;
-function nextId() {
-  localIdCounter += 1;
-  return `local_${localIdCounter}`;
+function pickReply() {
+  return MOCK_AI_REPLIES[Math.floor(Math.random() * MOCK_AI_REPLIES.length)];
+}
+
+function deriveTitle(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "今天的对话";
+  if (trimmed.length <= 12) return trimmed;
+  return trimmed.slice(0, 12) + "…";
+}
+
+function formatDate(ts: number) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 export default function ChatScreen() {
-  const params = useLocalSearchParams<{
-    recordId?: string;
-    date?: string;
-    title?: string;
-  }>();
+  const params = useLocalSearchParams<{ recordId?: string }>();
+  const recordId = params.recordId;
 
-  const seedSession = useMemo(() => {
-    if (!params.recordId) return null;
-    return MOCK_CHAT_SESSIONS[params.recordId] ?? null;
-  }, [params.recordId]);
-
-  const [messages, setMessages] = useState<ChatMessage[]>(
-    seedSession ? seedSession.messages : [],
-  );
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [historyTitle, setHistoryTitle] = useState<string | null>(null);
+  const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
+  const sendingRef = useRef(false);
 
   useEffect(() => {
-    setMessages(seedSession ? seedSession.messages : []);
-    setInputText("");
-  }, [params.recordId, seedSession]);
+    let cancelled = false;
+    if (!recordId) {
+      setCurrentSessionId(null);
+      setMessages([]);
+      setHistoryTitle(null);
+      setHistoryDate(null);
+      setInputText("");
+      return;
+    }
+    (async () => {
+      const result = await storage.getSession(recordId);
+      if (cancelled) return;
+      if (!result) {
+        setCurrentSessionId(null);
+        setMessages([]);
+        setHistoryTitle(null);
+        setHistoryDate(null);
+        return;
+      }
+      setCurrentSessionId(result.session.id);
+      setMessages(result.messages);
+      setHistoryTitle(result.session.title);
+      setHistoryDate(formatDate(result.session.updatedAt));
+      setInputText("");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recordId]);
 
   const scrollRef = useRef<ScrollView>(null);
   const orbOffset = useSharedValue(0);
@@ -86,31 +116,43 @@ export default function ChatScreen() {
     transform: [{ translateY: orbOffset.value }],
   }));
 
-  function send() {
+  async function send() {
+    if (sendingRef.current) return;
     const text = inputText.trim();
     if (!text) return;
-    const userMsg: ChatMessage = { id: nextId(), role: "user", text };
-    setMessages((prev) => [...prev, userMsg]);
+    sendingRef.current = true;
     setInputText("");
-    requestAnimationFrame(() =>
-      scrollRef.current?.scrollToEnd({ animated: true }),
-    );
-    setTimeout(() => {
-      const reply =
-        MOCK_AI_REPLIES[Math.floor(Math.random() * MOCK_AI_REPLIES.length)];
-      const aiMsg: ChatMessage = {
-        id: nextId(),
-        role: "ai",
-        text: reply,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+
+    try {
+      let sid = currentSessionId;
+      if (!sid) {
+        const session = await storage.createSession(deriveTitle(text));
+        sid = session.id;
+        setCurrentSessionId(sid);
+      }
+      const userMsg = await storage.appendMessage(sid, "user", text);
+      setMessages((prev) => [...prev, userMsg]);
       requestAnimationFrame(() =>
         scrollRef.current?.scrollToEnd({ animated: true }),
       );
-    }, 700);
+
+      setTimeout(async () => {
+        try {
+          const aiMsg = await storage.appendMessage(sid!, "ai", pickReply());
+          setMessages((prev) => [...prev, aiMsg]);
+          requestAnimationFrame(() =>
+            scrollRef.current?.scrollToEnd({ animated: true }),
+          );
+        } catch {
+          // 阶段 4 真实接 AI 时再补错误兜底
+        }
+      }, 700);
+    } finally {
+      sendingRef.current = false;
+    }
   }
 
-  const isHistory = Boolean(seedSession);
+  const isHistory = Boolean(recordId);
   const isEmpty = messages.length === 0;
 
   return (
@@ -154,10 +196,12 @@ export default function ChatScreen() {
             scrollRef={scrollRef}
             messages={messages}
             header={
-              isHistory ? (
+              isHistory && historyTitle ? (
                 <View style={styles.historyHeader}>
-                  <Text style={styles.historyDate}>{params.date}</Text>
-                  <Text style={styles.historyTitle}>{params.title}</Text>
+                  {historyDate ? (
+                    <Text style={styles.historyDate}>{historyDate}</Text>
+                  ) : null}
+                  <Text style={styles.historyTitle}>{historyTitle}</Text>
                   <Text style={styles.historyHint}>
                     可以接着这段对话继续聊。
                   </Text>
@@ -167,11 +211,7 @@ export default function ChatScreen() {
           />
         )}
 
-        <ChatInput
-          value={inputText}
-          onChange={setInputText}
-          onSend={send}
-        />
+        <ChatInput value={inputText} onChange={setInputText} onSend={send} />
       </Screen>
     </KeyboardAvoidingView>
   );

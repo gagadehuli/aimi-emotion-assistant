@@ -34,9 +34,9 @@ Route layout:
 
 - `app/_layout.tsx` — root `Stack` wrapped in `GestureHandlerRootView` + `SafeAreaProvider`, headers hidden globally. The `GestureHandlerRootView` is required so any `<GestureDetector>` in the tree (e.g. history's left-swipe) actually receives gestures.
 - `app/index.tsx` — entry redirect: `<Redirect href="/chat" />`. There is no welcome / onboarding screen; users land directly in chat.
-- `app/chat.tsx` — Chat screen. Header: `[reorder-two] Aimi [create]`. Left icon (two short bars) navigates to `/(tabs)/history`. Right icon resets to a fresh chat. Reads `recordId` / `date` / `title` via `useLocalSearchParams` to seed an existing session. Three states share the same input box: empty (no messages → big centered `BreathingOrb`), chatting (messages + mock AI replies from `mocks/MOCK_AI_REPLIES`), history (seeded from `mocks/MOCK_CHAT_SESSIONS` + can keep typing). Keyboard show/hide listeners drive a reanimated `translateY` on the orb.
+- `app/chat.tsx` — Chat screen. Header: `[reorder-two] Aimi [create]`. Left icon (two short bars) navigates to `/(tabs)/history`. Right icon resets to a fresh chat (`router.replace("/chat")`). Reads optional `recordId` via `useLocalSearchParams` and loads that session via `storage.getSession()`. Three states share the same input box: empty (no messages → big centered `BreathingOrb`), chatting (messages persisted via `storage.appendMessage`, mock AI replies from `MOCK_AI_REPLIES`), history (loaded session + can keep typing — appended messages persist back into the same session). On first send of a fresh chat, lazily creates a session whose title is the first user message trimmed to 12 chars + `…` (fallback `今天的对话`). Keyboard show/hide listeners drive a reanimated `translateY` on the orb.
 - `app/(tabs)/_layout.tsx` — Bottom tab bar (`history`, `weekly`, `treehole`, `profile`); `initialRouteName="history"`. Tab bar is `position: 'absolute'` with translucent background, so screens render under it — leave bottom padding when adding scrollable content.
-- `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId, date, title }` params. A `react-native-gesture-handler` `Pan` detects a right-to-left swipe (translationX < -60 with leftward velocity, vertical motion ≥12px cancels) and pushes `/chat`.
+- `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId }` (chat then loads title/date from storage). Sessions list is read on focus via `storage.listSessions()`. A `react-native-gesture-handler` `Pan` detects a right-to-left swipe (translationX < -60 with leftward velocity, vertical motion ≥12px cancels) and pushes `/chat`.
 
 `chat.tsx` lives outside the `(tabs)` group, so the tab bar correctly does not appear on it.
 
@@ -56,10 +56,13 @@ components/
   profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList
 constants/
   theme.ts                 single source of design tokens
+types/
+  models.ts                ChatRole, ChatMessage, ChatSession, Setting
 mocks/
-  index.ts                 central mock data (chat sessions / treehole posts / profile / works / agents)
+  index.ts                 central mock data; SEED_SESSIONS feeds the first-launch seeder
 storage/
-  index.ts                 placeholder stub; stage 3 will fill in expo-sqlite-backed methods
+  index.ts                 public async API; UI imports only from here
+  database.ts              expo-sqlite singleton, migrations, seeder
 _disabled/                 quarantined files; do not delete or execute
 ```
 
@@ -82,8 +85,20 @@ All app screens already route their colors through `theme.colors`. When you need
 
 ### Storage
 
-`storage/index.ts` is currently an empty placeholder (`export {}`). Stage 3 will populate it with `expo-sqlite`-backed methods (chats / messages / mood records / tree posts / settings) and that is the only file UI code should ever touch for persistence.
+`storage/index.ts` is the public async interface for local persistence — UI code should *only* import from `@/storage`, never from `expo-sqlite` directly. It is backed by `storage/database.ts`, which owns a single `expo-sqlite` connection (`aimi.db`), runs `PRAGMA user_version` migrations, and seeds `SEED_SESSIONS` on first launch (gated by `settings.seeded='1'`).
+
+Public methods on `storage`:
+
+- `listSessions()` — chat sessions ordered by `updated_at DESC`
+- `getSession(id)` — `{ session, messages }` or `null`
+- `createSession(title)` — returns the new `ChatSession`
+- `appendMessage(sessionId, role, text)` — also bumps `updated_at` and `last_preview` on the session
+- `deleteSession(id)` — cascades to messages
+- `wipeAll()` — `DELETE` from every data table and from `settings`, then re-inserts `settings.seeded='1'` so the seeder will not run again. Tables themselves are preserved.
+- `getSetting(key)` / `setSetting(key, value)`
+
+Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`, `settings`. Stage 3 only reads/writes the chat tables; the rest are reserved for stages 4–5.
 
 ### Mocks
 
-`mocks/index.ts` is the single source of stub data while stage 2 does not have a real database. Anywhere that will eventually read from SQLite — chat sessions / treehole posts / profile works / agents / favorites — currently imports its arrays from here. Keep new mock data centralized in this file so stage 3 can swap it for SQLite reads without spelunking through screens.
+`mocks/index.ts` is the single source of stub data while later stages do not yet have real backends. `SEED_SESSIONS` is consumed *only* by the database seeder on first launch. The other arrays — `MOCK_AI_REPLIES`, `MOCK_TREEHOLE_POSTS`, `TREEHOLE_CATEGORIES`, `MOCK_PROFILE`, `MOCK_WORKS`, `MOCK_FAVORITES`, `MOCK_AGENTS` — are read directly by their respective screens and will be migrated into SQLite when those screens get rebuilt in later stages. UI screens must not import `SEED_SESSIONS` directly; they go through `storage`.

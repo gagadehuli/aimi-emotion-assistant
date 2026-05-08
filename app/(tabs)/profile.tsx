@@ -1,5 +1,6 @@
+import { router } from "expo-router";
 import { useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { PrimaryPill } from "@/components/common/PrimaryPill";
 import { Screen } from "@/components/common/Screen";
@@ -9,6 +10,7 @@ import { SegmentedTabs } from "@/components/profile/SegmentedTabs";
 import { WorksGrid } from "@/components/profile/WorksGrid";
 import { theme } from "@/constants/theme";
 import { MOCK_AGENTS, MOCK_FAVORITES, MOCK_WORKS } from "@/mocks";
+import { storage } from "@/storage";
 
 const TABS = ["作品", "智能体", "收藏"] as const;
 type Tab = (typeof TABS)[number];
@@ -16,6 +18,34 @@ type Tab = (typeof TABS)[number];
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<Tab>("作品");
+
+  function onSettings() {
+    Alert.alert(
+      "清除本地数据？",
+      "你和 Aimi 的全部对话和设置会被删除，且不可恢复。",
+      [
+        { text: "取消", style: "cancel" },
+        { text: "我想清除", style: "destructive", onPress: confirmWipe },
+      ],
+    );
+  }
+
+  function confirmWipe() {
+    Alert.alert("再次确认", "这是不可逆操作。仍然清除？", [
+      { text: "取消", style: "cancel" },
+      {
+        text: "确认清除",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await storage.wipeAll();
+          } finally {
+            router.replace("/chat");
+          }
+        },
+      },
+    ]);
+  }
 
   return (
     <View style={styles.root}>
@@ -25,7 +55,7 @@ export default function ProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <ProfileHeader />
+          <ProfileHeader onSettings={onSettings} />
 
           <SegmentedTabs tabs={TABS} active={tab} onSelect={setTab} />
 
