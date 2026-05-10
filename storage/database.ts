@@ -1,9 +1,10 @@
 import * as SQLite from "expo-sqlite";
-import { SEED_SESSIONS } from "@/mocks";
+import { SEED_AGENTS, SEED_SESSIONS, SEED_TREE_POSTS } from "@/mocks";
 
 const DB_NAME = "aimi.db";
-// Current schema version: 4 (kept inline in migrate() so each step is self-contained)
+// Current schema version: 6 (kept inline in migrate() so each step is self-contained)
 const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -16,7 +17,9 @@ async function init() {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
   await db.execAsync("PRAGMA foreign_keys = ON;");
   await migrate(db);
-  await maybeSeed(db);
+  await maybeSeedSessions(db);
+  await maybeSeedTreePosts(db);
+  await maybeSeedAgents(db);
   return db;
 }
 
@@ -96,17 +99,34 @@ async function migrate(db: SQLite.SQLiteDatabase) {
     `);
   }
   if (current < 4) {
-    // mood_records 表在 v1 已经建好；这一步只补 created_at 索引，
-    // Weekly 周报频繁按时间窗口扫，加索引避免全表 scan。
+    // mood_records 表在 v1 已建；这一步只补 created_at 索引，Weekly 周报按时间窗口扫表
     await db.execAsync(`
       CREATE INDEX IF NOT EXISTS idx_mood_records_created
         ON mood_records(created_at DESC);
       PRAGMA user_version = 4;
     `);
   }
+  if (current < 5) {
+    // 树洞本地点赞计数；老数据 likes 默认 0
+    await db.execAsync(`
+      ALTER TABLE tree_posts ADD COLUMN likes INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_tree_posts_created
+        ON tree_posts(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_tree_posts_category
+        ON tree_posts(category);
+      PRAGMA user_version = 5;
+    `);
+  }
+  if (current < 6) {
+    // 本设备的"是否已点赞"标记，让点赞变成 toggle。老行 is_liked 默认 0。
+    await db.execAsync(`
+      ALTER TABLE tree_posts ADD COLUMN is_liked INTEGER NOT NULL DEFAULT 0;
+      PRAGMA user_version = 6;
+    `);
+  }
 }
 
-async function maybeSeed(db: SQLite.SQLiteDatabase) {
+async function maybeSeedSessions(db: SQLite.SQLiteDatabase) {
   const seeded = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM settings WHERE key = 'seeded';",
   );
@@ -135,5 +155,47 @@ async function maybeSeed(db: SQLite.SQLiteDatabase) {
   }
   await db.runAsync(
     "INSERT OR REPLACE INTO settings (key, value) VALUES ('seeded', '1');",
+  );
+}
+
+async function maybeSeedTreePosts(db: SQLite.SQLiteDatabase) {
+  const seeded = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'tree_seeded';",
+  );
+  if (seeded?.value === "1") return;
+
+  const now = Date.now();
+  for (const p of SEED_TREE_POSTS) {
+    const ts = now - p.hoursAgo * HOUR_MS;
+    await db.runAsync(
+      `INSERT INTO tree_posts (id, category, title, content, author_alias, likes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      [p.id, p.category, p.title, p.content, p.authorAlias, 0, ts],
+    );
+  }
+  await db.runAsync(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('tree_seeded', '1');",
+  );
+}
+
+async function maybeSeedAgents(db: SQLite.SQLiteDatabase) {
+  const seeded = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM settings WHERE key = 'agents_seeded';",
+  );
+  if (seeded?.value === "1") return;
+
+  const now = Date.now();
+  let i = 0;
+  for (const a of SEED_AGENTS) {
+    const ts = now - i * 60_000; // 之间间隔 1 分钟，保证排序稳定
+    i += 1;
+    await db.runAsync(
+      `INSERT INTO agents (id, name, intro, hue, is_private, created_at)
+       VALUES (?, ?, ?, ?, ?, ?);`,
+      [a.id, a.name, a.intro, a.hue, a.isPrivate ? 1 : 0, ts],
+    );
+  }
+  await db.runAsync(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES ('agents_seeded', '1');",
   );
 }

@@ -1,4 +1,3 @@
-import { theme } from "@/constants/theme";
 import type { ChatRole } from "@/types/models";
 
 export type SeedMessage = {
@@ -85,25 +84,85 @@ export const TREEHOLE_CATEGORIES: string[] = [
   "灵感",
 ];
 
-export type TreeholePost = {
+// 创建帖子时可选分类（去掉"发现"，"发现" 是查看全部的入口而非真实分类）
+export const TREEHOLE_POST_CATEGORIES: string[] = TREEHOLE_CATEGORIES.filter(
+  (c) => c !== "发现",
+);
+
+export type SeedTreePost = {
   id: string;
+  category: string;
   title: string;
-  author: string;
-  hot: string;
-  hue1: string;
-  hue2: string;
-  height: number;
+  content: string;
+  authorAlias: string;
+  hoursAgo: number;
 };
 
-export const MOCK_TREEHOLE_POSTS: TreeholePost[] = [
-  { id: "p1", title: "今晚的晚霞", author: "小麦", hot: "1.2 万人共鸣", hue1: "#F8C9A7", hue2: "#E89972", height: 220 },
-  { id: "p2", title: "和自己和解", author: "阿绿", hot: "8723 人共鸣", hue1: "#CFE2C2", hue2: "#82AB7E", height: 170 },
-  { id: "p3", title: "清晨第一杯咖啡", author: "豆豆", hot: "3.4 万人共鸣", hue1: "#EFD9B0", hue2: "#C7965C", height: 240 },
-  { id: "p4", title: "下班路上的风", author: "Jin", hot: "9201 人共鸣", hue1: "#D7C7EC", hue2: "#9B82C6", height: 200 },
-  { id: "p5", title: "随手拍的猫", author: "Mooncake", hot: "5.6 万人共鸣", hue1: "#FFE0E5", hue2: "#E69CA9", height: 230 },
-  { id: "p6", title: "今天也想被治愈", author: "蓝色信封", hot: "6182 人共鸣", hue1: "#C9DDF6", hue2: "#7CA3D6", height: 195 },
-  { id: "p7", title: "深夜电台开始了", author: "Lin", hot: "1.7 万人共鸣", hue1: "#3F3744", hue2: "#7C5577", height: 210 },
-  { id: "p8", title: "便利店买了热豆浆", author: "莎莎", hot: "742 人共鸣", hue1: "#FFF1C9", hue2: "#E2BC6E", height: 180 },
+export const SEED_TREE_POSTS: SeedTreePost[] = [
+  {
+    id: "p1",
+    category: "日常分享",
+    title: "今晚的晚霞",
+    content: "下班路上抬头看到一片橙紫色，发愣了几秒。",
+    authorAlias: "小麦",
+    hoursAgo: 2,
+  },
+  {
+    id: "p2",
+    category: "治愈",
+    title: "和自己和解",
+    content: "今天突然原谅了那个总是把事情搞砸的自己，像放下一块小石头。",
+    authorAlias: "阿绿",
+    hoursAgo: 6,
+  },
+  {
+    id: "p3",
+    category: "日常分享",
+    title: "清晨第一杯咖啡",
+    content: "煮咖啡的时候听到窗外鸟叫，忽然觉得早起也没那么糟。",
+    authorAlias: "豆豆",
+    hoursAgo: 14,
+  },
+  {
+    id: "p4",
+    category: "灵感",
+    title: "下班路上的风",
+    content: "灯一盏一盏亮起来，地铁口有人在弹吉他，城市的疲惫好像都温柔了一点。",
+    authorAlias: "Jin",
+    hoursAgo: 24,
+  },
+  {
+    id: "p5",
+    category: "萌宠",
+    title: "随手拍的猫",
+    content: "在便利店门口睡得四仰八叉，跟旁边人完全不熟。",
+    authorAlias: "Mooncake",
+    hoursAgo: 30,
+  },
+  {
+    id: "p6",
+    category: "治愈",
+    title: "今天也想被治愈",
+    content: "做完手头的事就准备早点睡。让自己歇一会儿不是浪费时间。",
+    authorAlias: "蓝色信封",
+    hoursAgo: 40,
+  },
+  {
+    id: "p7",
+    category: "心情",
+    title: "深夜电台开始了",
+    content: "戴上耳机的那一刻，世界瞬间变小，只剩下呼吸和声音。",
+    authorAlias: "Lin",
+    hoursAgo: 48,
+  },
+  {
+    id: "p8",
+    category: "日常分享",
+    title: "便利店买了热豆浆",
+    content: "捧在手里的时候才发现，原来一杯热的就够暖和半天。",
+    authorAlias: "莎莎",
+    hoursAgo: 60,
+  },
 ];
 
 export type ProfileStats = {
@@ -153,20 +212,21 @@ export const MOCK_FAVORITES: WorkCard[] = [
   { id: "f4", title: "今天读到的一段话", author: "默默", hot: "5.6 千收藏", hue1: "#FFD9DD", hue2: "#E599A6" },
 ];
 
-export type AgentCard = {
+export type SeedAgent = {
   id: string;
   name: string;
   intro: string;
   hue: string;
-  isPrivate?: boolean;
+  isPrivate: boolean;
 };
 
-export const MOCK_AGENTS: AgentCard[] = [
+export const SEED_AGENTS: SeedAgent[] = [
   {
     id: "a_aimi",
     name: "Aimi",
     intro: "陪你说说话，也帮你记住每一种心情。Aimi 是这个 App 里默认陪你的那个声音。",
-    hue: theme.colors.accent,
+    hue: "#F4B79E",
+    isPrivate: false,
   },
   {
     id: "a_school",
@@ -180,6 +240,7 @@ export const MOCK_AGENTS: AgentCard[] = [
     name: "深夜写作者",
     intro: "凌晨陪你写完那篇稿子，会用一两句话戳中你卡住的地方。",
     hue: "#A89FE0",
+    isPrivate: false,
   },
   {
     id: "a_canteen",

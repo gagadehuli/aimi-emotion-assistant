@@ -38,6 +38,9 @@ Route layout:
 - `app/(tabs)/_layout.tsx` — Bottom tab bar (`history`, `weekly`, `treehole`, `profile`); `initialRouteName="history"`. Tab bar is `position: 'absolute'` with translucent background, so screens render under it — leave bottom padding when adding scrollable content.
 - `app/(tabs)/history.tsx` — "对话" tab; cards push `/chat` with `{ recordId }` (chat then loads title/date from storage). Sessions list is read on focus via `storage.listSessions()`. A `react-native-gesture-handler` `Pan` detects a right-to-left swipe (translationX < -60 with leftward velocity, vertical motion ≥12px cancels) and pushes `/chat`.
 - `app/(tabs)/weekly.tsx` — "周报" tab. On focus reads `storage.listMoodRecordsForWeek()` and the week's chat messages, then aggregates: per-day buckets coloured by each day's dominant mood, the dominant mood across the week (drives both the description and the local Aimi suggestion template), and top keywords from a curated list (`KEYWORDS` in the file) counted against user messages. **No live AI call** — suggestions are local templates so opening the tab is free. Empty state ("这周还没有情绪记录") has a "去聊天" button that `router.replace("/chat")`.
+- `app/(tabs)/treehole.tsx` — "树洞" tab. Reads `storage.listTreePosts({category?})` on focus and on category change. The "开始创作" pill opens `<CreatePostDialog>` (title + content + horizontal category chip from `TREEHOLE_POST_CATEGORIES`); on submit calls `storage.createTreePost`, switches active category to the new post's category, and refetches. Each card supports tap-to-like (`storage.incrementTreePostLike`) and long-press-to-delete (Alert two-step → `storage.deleteTreePost`). Card hue is derived from the post's category (`CATEGORY_HUES` in `DiscoveryGrid`) so SQLite never has to store visual fields.
+- `app/(tabs)/profile.tsx` — "我的" tab. Settings gear in `ProfileHeader` now `router.push("/settings")` (the inline two-stage clear-data Alert moved into the settings page). The 智能体 tab reads from `storage.listAgents()` on focus; "+ 创建AI智能体" pill opens `<CreateAgentDialog>` (name + intro) which calls `storage.createAgent` and refreshes. Works/Favorites tabs still read from `mocks/MOCK_WORKS` / `MOCK_FAVORITES` — they will be migrated when works/favorites screens get rebuilt.
+- `app/settings.tsx` — Top-level Stack route reachable from the profile gear. Renders `AppHeader` with a back button and three sections: 本地数据 (清除本地数据 → two-step `Alert` → `storage.wipeAll()` → `router.replace("/chat")`), AI (current model + current mode read from `EXPO_PUBLIC_AI_PROVIDER` / `EXPO_PUBLIC_AI_PROXY_URL`), 关于 (Aimi about info, disclaimer placeholder, version from `expo-constants`).
 
 `chat.tsx` lives outside the `(tabs)` group, so the tab bar correctly does not appear on it.
 
@@ -47,19 +50,19 @@ TS path alias: `@/*` → repo root (see `tsconfig.json`). Prefer `@/components/.
 
 ```
 app/                       routes only
-  _layout.tsx, index.tsx, chat.tsx
+  _layout.tsx, index.tsx, chat.tsx, settings.tsx
   (tabs)/_layout.tsx, history.tsx, weekly.tsx, treehole.tsx, profile.tsx
 components/
   aimi/                    Aimi-brand visuals (BreathingOrb)
   common/                  cross-screen shells (Screen, AppHeader, IconButton, PrimaryPill)
   chat/                    MessageList, ChatInput, MoodQuickRecord
   history/                 SessionActionSheet, RenameDialog
-  treehole/                CategoryTabs, DiscoveryGrid
-  profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList
+  treehole/                CategoryTabs, DiscoveryGrid, CreatePostDialog
+  profile/                 ProfileHeader, SegmentedTabs, WorksGrid, AgentList, CreateAgentDialog
 constants/
   theme.ts                 single source of design tokens
 types/
-  models.ts                ChatRole, AiSource, ChatMessage, ChatSession, Setting, Mood, MoodRecord
+  models.ts                ChatRole, AiSource, ChatMessage, ChatSession, Setting, Mood, MoodRecord, TreePost, Agent
 mocks/
   index.ts                 central mock data; SEED_SESSIONS feeds the first-launch seeder
 services/
@@ -100,17 +103,25 @@ Public methods on `storage`:
 - `createSession(title)` — returns the new `ChatSession`
 - `appendMessage(sessionId, role, text, source?)` — also bumps `updated_at` and `last_preview` on the session
 - `renameSession(id, title)` / `setPinned(id, pinned)` / `deleteSession(id)`
-- `createMoodRecord({sessionId?, mood, intensity?, note?})` — `intensity` defaults to 3 and is clamped 1–5
-- `listMoodRecords({since?, until?})` / `listMoodRecordsForWeek(now?)` / `deleteMoodRecord(id)`
-- `wipeAll()` — `DELETE` from every data table and from `settings`, then re-inserts `settings.seeded='1'` so the seeder will not run again. Tables themselves are preserved.
+- `createMoodRecord({sessionId?, mood, intensity?, note?})` / `listMoodRecords({since?, until?})` / `listMoodRecordsForWeek(now?)` / `hasMoodRecordToday(now?)` / `deleteMoodRecord(id)`
+- `listTreePosts({category?})` / `createTreePost({category, title, content, authorAlias?})` / `deleteTreePost(id)` / `toggleTreePostLike(id)` — toggles `is_liked` on the row and adjusts `likes` ±1 in a single UPDATE; returns the updated post or `null`
+- `listAgents()` / `createAgent({name, intro, hue?, isPrivate?})` / `deleteAgent(id)`
+- `wipeAll()` — `DELETE` from every data table and from `settings`, then re-inserts `seeded='1'`, `tree_seeded='1'`, `agents_seeded='1'` so **none** of the three seeders will run again. Tables themselves are preserved.
 - `getSetting(key)` / `setSetting(key, value)`
-- `startOfThisWeek(now?)` / `endOfThisWeek(now?)` — exposed helpers; week boundaries are local-time Mon 00:00 → next Mon 00:00
+- `startOfThisWeek(now?)` / `endOfThisWeek(now?)` / `startOfToday(now?)` — exposed helpers; week boundaries are local-time Mon 00:00 → next Mon 00:00
 
-Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`, `settings`. Stages 3–4 use chat tables; stage 5A activates `mood_records`; `tree_posts` and `agents` are reserved.
+Tables: `chat_sessions`, `chat_messages`, `mood_records`, `tree_posts`, `agents`, `settings`. Stages 3–4 use the chat tables; stage 5A activates `mood_records`; stage 5B activates `tree_posts` (with `likes` column from migration v5) and `agents` (created via `CreateAgentDialog`). Three first-launch seeders write `SEED_SESSIONS`, `SEED_TREE_POSTS`, and `SEED_AGENTS` from `mocks/index.ts`, each gated by its own `settings` flag (`seeded`, `tree_seeded`, `agents_seeded`).
 
 ### Mocks
 
-`mocks/index.ts` is the single source of stub data while later stages do not yet have real backends. `SEED_SESSIONS` is consumed *only* by the database seeder on first launch. The other arrays — `MOCK_AI_REPLIES`, `MOCK_TREEHOLE_POSTS`, `TREEHOLE_CATEGORIES`, `MOCK_PROFILE`, `MOCK_WORKS`, `MOCK_FAVORITES`, `MOCK_AGENTS` — are read directly by their respective screens and will be migrated into SQLite when those screens get rebuilt in later stages. UI screens must not import `SEED_SESSIONS` directly; they go through `storage`. `MOCK_AI_REPLIES` is now also the **AI fallback** when the proxy backend is unreachable — see "AI integration" below.
+`mocks/index.ts` is the single source of stub data while later stages do not yet have real backends.
+
+- `SEED_SESSIONS`, `SEED_TREE_POSTS`, `SEED_AGENTS` are consumed *only* by the database seeders in `storage/database.ts` on first launch (each gated by its own `settings.*_seeded` flag).
+- `MOCK_AI_REPLIES` is the AI fallback when the proxy backend is unreachable (see "AI integration" below).
+- `TREEHOLE_CATEGORIES` (full list, including "发现" the all-filter) and `TREEHOLE_POST_CATEGORIES` (creation list, "发现" excluded) are read by `(tabs)/treehole.tsx` and `<CreatePostDialog>`.
+- `MOCK_PROFILE`, `MOCK_WORKS`, `MOCK_FAVORITES` are still read directly by `(tabs)/profile.tsx` for the works/favorites grids; they will be migrated when those screens get rebuilt.
+
+UI screens must not import `SEED_*` directly; they always go through `storage`.
 
 ### AI integration
 
@@ -122,8 +133,8 @@ Components:
 - `services/ai.ts` — only AI entry point for the app. `replyTo(history) → { text, source, level }`. Order: client safety mirror → no proxy / forced mock → POST to proxy → mock fallback on any error. Never throws.
 - `services/safety.ts` — client-side mirror of the `crisis` and `high` levels. If the user types a self-harm phrase and the backend is unreachable, the app still returns a safety template instead of a random mock line. Templates and patterns must stay in sync with `server/src/safety.ts`.
 - `app/chat.tsx` — calls `replyTo([...messages, userMsg])`, persists the AI message via `storage.appendMessage(sid, "ai", text, source)`. Shows three pulsing dots in `<MessageList thinking>` while waiting; disables `<ChatInput>` so users can't double-send.
-- `MessageList` — when an AI message has `source === "mock"`, renders a tiny "本地回复" gray label in the bubble corner. `safety` and `gemini` replies show no badge. The thinking bubble shows "正在听你说" + 3 pulsing dots while waiting on `replyTo`.
-- `MoodQuickRecord` — small card rendered as MessageList footer **after** the user has at least one user→AI exchange in the current chat instance. Lets the user tap one of 5 mood chips (calm/happy/tired/anxious/sad). On tap calls `storage.createMoodRecord({sessionId, mood, intensity: 3, note: lastUserText.slice(0,30)})`, then collapses to "已记录到本周情绪". One recording per chat-screen visit; resets when the user enters a different session or `replace("/chat")`s into a fresh one.
+- `MessageList` — when an AI message has `source === "mock"`, renders a tiny "本地回复" gray label in the bubble corner. `safety` and `gemini` replies show no badge. The thinking bubble shows "正在听你说" + 3 pulsing dots while waiting on `replyTo`. Bubbles support `onLongPressMessage`; `chat.tsx` wires that to `expo-clipboard` `setStringAsync` + `Alert.alert("已复制")`.
+- `MoodQuickRecord` — small card rendered as MessageList footer **after** the user has at least one user→AI exchange in the current chat instance, **and** today's `mood_records` count is 0 (`storage.hasMoodRecordToday()`). Lets the user tap one of 5 mood chips (calm/happy/tired/anxious/sad). On tap calls `storage.createMoodRecord({sessionId, mood, intensity: 3, note: lastUserText.slice(0,30)})`, then collapses to "已记录到本周情绪". One recording per day — once the day already has a record, the card is suppressed in every fresh chat instance for the rest of that local day.
 
 Safety levels (server-side classifier is authoritative):
 

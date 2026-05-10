@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { theme } from "@/constants/theme";
-import type { AgentCard } from "@/mocks";
+import type { Agent } from "@/types/models";
 
-type Props = { agents: AgentCard[] };
+type Props = { agents: Agent[] };
 
 export function AgentList({ agents }: Props) {
   return (

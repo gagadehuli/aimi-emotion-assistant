@@ -36,3 +36,23 @@ export type MoodRecord = {
   note: string | null;
   createdAt: number;
 };
+
+export type TreePost = {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  authorAlias: string | null;
+  likes: number;
+  liked: boolean;
+  createdAt: number;
+};
+
+export type Agent = {
+  id: string;
+  name: string;
+  intro: string;
+  hue: string;
+  isPrivate: boolean;
+  createdAt: number;
+};

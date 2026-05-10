@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -171,6 +173,16 @@ export default function ChatScreen() {
     }
   }
 
+  async function copyMessage(m: ChatMessage) {
+    if (!m.text) return;
+    try {
+      await Clipboard.setStringAsync(m.text);
+      Alert.alert("已复制");
+    } catch {
+      // 复制失败不打扰
+    }
+  }
+
   async function pickMood(mood: Mood) {
     if (recordedMood || hasTodayRecord) return;
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
@@ -243,6 +255,7 @@ export default function ChatScreen() {
             scrollRef={scrollRef}
             messages={messages}
             thinking={isThinking}
+            onLongPressMessage={copyMessage}
             header={
               isHistory && historyTitle ? (
                 <View style={styles.historyHeader}>

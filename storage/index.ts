@@ -1,10 +1,12 @@
 import type {
+  Agent,
   AiSource,
   ChatMessage,
   ChatRole,
   ChatSession,
   Mood,
   MoodRecord,
+  TreePost,
 } from "@/types/models";
 import { getDb } from "./database";
 
@@ -34,6 +36,55 @@ type MoodRow = {
   note: string | null;
   created_at: number;
 };
+
+type TreePostRow = {
+  id: string;
+  category: string;
+  title: string;
+  content: string;
+  author_alias: string | null;
+  likes: number;
+  is_liked: number;
+  created_at: number;
+};
+
+type AgentRow = {
+  id: string;
+  name: string;
+  intro: string;
+  hue: string;
+  is_private: number;
+  created_at: number;
+};
+
+function rowToTreePost(r: TreePostRow): TreePost {
+  return {
+    id: r.id,
+    category: r.category,
+    title: r.title,
+    content: r.content,
+    authorAlias: r.author_alias,
+    likes: r.likes,
+    liked: r.is_liked === 1,
+    createdAt: r.created_at,
+  };
+}
+
+function rowToAgent(r: AgentRow): Agent {
+  return {
+    id: r.id,
+    name: r.name,
+    intro: r.intro,
+    hue: r.hue,
+    isPrivate: r.is_private === 1,
+    createdAt: r.created_at,
+  };
+}
+
+const TREE_POST_COLUMNS =
+  "id, category, title, content, author_alias, likes, is_liked, created_at";
+
+const AGENT_COLUMNS = "id, name, intro, hue, is_private, created_at";
 
 const VALID_MOODS: ReadonlySet<Mood> = new Set([
   "calm",
@@ -236,6 +287,7 @@ export const storage = {
 
   async wipeAll(): Promise<void> {
     const db = await getDb();
+    // 清空数据后把所有 seeder flag 都置位，下次启动不会再补回种子内容。
     await db.execAsync(`
       DELETE FROM chat_messages;
       DELETE FROM chat_sessions;
@@ -244,6 +296,8 @@ export const storage = {
       DELETE FROM agents;
       DELETE FROM settings;
       INSERT INTO settings (key, value) VALUES ('seeded', '1');
+      INSERT INTO settings (key, value) VALUES ('tree_seeded', '1');
+      INSERT INTO settings (key, value) VALUES ('agents_seeded', '1');
     `);
   },
 
@@ -339,6 +393,121 @@ export const storage = {
     const db = await getDb();
     await db.runAsync("DELETE FROM mood_records WHERE id = ?;", [id]);
   },
+
+  async listTreePosts(filter?: {
+    category?: string;
+  }): Promise<TreePost[]> {
+    const db = await getDb();
+    if (filter?.category) {
+      const rows = await db.getAllAsync<TreePostRow>(
+        `SELECT ${TREE_POST_COLUMNS}
+           FROM tree_posts
+          WHERE category = ?
+          ORDER BY created_at DESC;`,
+        [filter.category],
+      );
+      return rows.map(rowToTreePost);
+    }
+    const rows = await db.getAllAsync<TreePostRow>(
+      `SELECT ${TREE_POST_COLUMNS}
+         FROM tree_posts
+         ORDER BY created_at DESC;`,
+    );
+    return rows.map(rowToTreePost);
+  },
+
+  async createTreePost(input: {
+    category: string;
+    title: string;
+    content: string;
+    authorAlias?: string | null;
+  }): Promise<TreePost> {
+    const db = await getDb();
+    const id = makeId("tp");
+    const now = Date.now();
+    const author = input.authorAlias ?? null;
+    await db.runAsync(
+      `INSERT INTO tree_posts (id, category, title, content, author_alias, likes, is_liked, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+      [id, input.category, input.title, input.content, author, 0, 0, now],
+    );
+    return {
+      id,
+      category: input.category,
+      title: input.title,
+      content: input.content,
+      authorAlias: author,
+      likes: 0,
+      liked: false,
+      createdAt: now,
+    };
+  },
+
+  async deleteTreePost(id: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync("DELETE FROM tree_posts WHERE id = ?;", [id]);
+  },
+
+  async toggleTreePostLike(id: string): Promise<TreePost | null> {
+    const db = await getDb();
+    // 一句 UPDATE 完成 toggle：is_liked 取反，likes 在已赞时减 1（不低于 0）、否则加 1
+    await db.runAsync(
+      `UPDATE tree_posts
+          SET is_liked = CASE WHEN is_liked = 1 THEN 0 ELSE 1 END,
+              likes    = CASE
+                           WHEN is_liked = 1 THEN MAX(likes - 1, 0)
+                           ELSE likes + 1
+                         END
+        WHERE id = ?;`,
+      [id],
+    );
+    const row = await db.getFirstAsync<TreePostRow>(
+      `SELECT ${TREE_POST_COLUMNS} FROM tree_posts WHERE id = ?;`,
+      [id],
+    );
+    return row ? rowToTreePost(row) : null;
+  },
+
+  async listAgents(): Promise<Agent[]> {
+    const db = await getDb();
+    const rows = await db.getAllAsync<AgentRow>(
+      `SELECT ${AGENT_COLUMNS}
+         FROM agents
+         ORDER BY created_at DESC;`,
+    );
+    return rows.map(rowToAgent);
+  },
+
+  async createAgent(input: {
+    name: string;
+    intro: string;
+    hue?: string;
+    isPrivate?: boolean;
+  }): Promise<Agent> {
+    const db = await getDb();
+    const id = makeId("ag");
+    const now = Date.now();
+    const hue = input.hue ?? pickAgentHue(input.name);
+    const isPrivate = input.isPrivate ?? false;
+    await db.runAsync(
+      `INSERT INTO agents (id, name, intro, hue, is_private, created_at)
+       VALUES (?, ?, ?, ?, ?, ?);`,
+      [id, input.name, input.intro, hue, isPrivate ? 1 : 0, now],
+    );
+    return {
+      id,
+      name: input.name,
+      intro: input.intro,
+      hue,
+      isPrivate,
+      createdAt: now,
+    };
+  },
+
+  async deleteAgent(id: string): Promise<void> {
+    const db = await getDb();
+    await db.runAsync("DELETE FROM agents WHERE id = ?;", [id]);
+  },
 };
 
 function clampIntensity(n: number): number {
@@ -346,4 +515,19 @@ function clampIntensity(n: number): number {
   if (n < 1) return 1;
   if (n > 5) return 5;
   return Math.round(n);
+}
+
+const AGENT_HUE_PALETTE = [
+  "#F4B79E",
+  "#A89FE0",
+  "#F5C56B",
+  "#82AB7E",
+  "#7CA3D6",
+  "#E69CA9",
+];
+
+function pickAgentHue(name: string): string {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  return AGENT_HUE_PALETTE[Math.abs(h) % AGENT_HUE_PALETTE.length];
 }

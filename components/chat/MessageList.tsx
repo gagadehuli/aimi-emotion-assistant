@@ -1,5 +1,5 @@
 import { ReactNode, RefObject, useEffect } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -16,6 +16,7 @@ type Props = {
   header?: ReactNode;
   footer?: ReactNode;
   thinking?: boolean;
+  onLongPressMessage?: (m: ChatMessage) => void;
 };
 
 export function MessageList({
@@ -24,6 +25,7 @@ export function MessageList({
   header,
   footer,
   thinking,
+  onLongPressMessage,
 }: Props) {
   return (
     <ScrollView
@@ -34,18 +36,23 @@ export function MessageList({
     >
       {header}
       {messages.map((m) => (
-        <View
+        <Pressable
           key={m.id}
-          style={[
+          onLongPress={
+            onLongPressMessage ? () => onLongPressMessage(m) : undefined
+          }
+          delayLongPress={350}
+          style={({ pressed }) => [
             styles.bubbleBase,
             m.role === "ai" ? styles.aiBubble : styles.userBubble,
+            pressed && onLongPressMessage ? styles.bubblePressed : null,
           ]}
         >
           <Text style={styles.bubbleText}>{m.text}</Text>
           {m.role === "ai" && m.source === "mock" ? (
             <Text style={styles.localBadge}>本地回复</Text>
           ) : null}
-        </View>
+        </Pressable>
       ))}
       {thinking ? (
         <View style={[styles.bubbleBase, styles.aiBubble, styles.thinkingBubble]}>
@@ -121,6 +128,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 23,
     color: theme.colors.text,
+  },
+  bubblePressed: {
+    opacity: 0.7,
   },
   localBadge: {
     marginTop: 6,
