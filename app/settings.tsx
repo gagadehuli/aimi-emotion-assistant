@@ -59,12 +59,12 @@ export default function SettingsScreen() {
     );
   }
 
-  function showDisclaimer() {
-    Alert.alert(
-      "免责声明",
-      "正式版本会单独提供详细的隐私政策与免责声明。当前为开发预览版。",
-      [{ text: "好" }],
-    );
+  function openPrivacy() {
+    router.push("/privacy");
+  }
+
+  function openDisclaimer() {
+    router.push("/disclaimer");
   }
 
   return (
@@ -109,10 +109,14 @@ export default function SettingsScreen() {
             onPress={showAbout}
           />
           <Row
+            icon="shield-checkmark-outline"
+            label="隐私政策"
+            onPress={openPrivacy}
+          />
+          <Row
             icon="document-text-outline"
             label="免责声明"
-            onPress={showDisclaimer}
-            description="后续补充"
+            onPress={openDisclaimer}
           />
           <InfoRow label="版本" value={APP_VERSION} />
         </Section>
