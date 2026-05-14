@@ -2,11 +2,22 @@
 
 > 一个温和的中文 AI 情绪陪伴助手。陪你说说话，也帮你记住每一种心情。
 
-Aimi 是一个 React Native + Expo 编写的端到端项目，包括移动端 App 和一个用于
-保护 API Key 的本地后端代理。所有聊天、情绪记录、树洞内容、自定义智能体都
-存在用户本地 SQLite，不上传云端。
+![Expo](https://img.shields.io/badge/Expo-SDK%2054-000?logo=expo)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript)
+![React Native](https://img.shields.io/badge/React%20Native-0.81-61DAFB?logo=react)
+![License](https://img.shields.io/badge/license-personal--portfolio-lightgrey)
 
-> **Aimi 不是医疗服务**。它不能替代心理咨询、医生诊断或紧急救助。详见
+## TL;DR
+
+Aimi 是一个面向中文年轻用户的 AI 情绪陪伴 App，从产品决策、UI、本地数据、
+AI 接入到安全分级**全部独立完成**。
+
+- **前端**：Expo SDK 54 + React Native + TypeScript（严格模式）+ expo-router
+- **本地数据**：expo-sqlite 6 张表，schema 增量迁移到 v6
+- **AI**：自建 Node 后端代理 Gemini，4 级安全分级，断网走 mock 兜底
+- **6 个阶段、6 个 git 里程碑 commit、零云端依赖、零账号系统**
+
+> ⚠️ **Aimi 不是医疗服务**。它不能替代心理咨询、医生诊断或紧急救助。详见
 > App 内「设置 → 免责声明」或 `app/disclaimer.tsx`。
 
 ---
@@ -241,4 +252,6 @@ CLAUDE.md                  内部架构文档（给 Claude Code 看的）
 
 ## License
 
-个人作品集项目，暂未发布开源 license。如需引用或复用，请先联系仓库 owner。
+个人作品集项目，All Rights Reserved。代码与设计仅供面试与作品集展示用途，
+未经作者同意请勿直接复用、二次发布或商业使用。如需引用或在你自己的项目里借
+鉴某一部分（如 safety 分级思路、SQLite migration 模式），请先联系仓库 owner。

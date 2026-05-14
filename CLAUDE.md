@@ -20,7 +20,7 @@ npm run typecheck      # tsc --noEmit (strict mode is on)
 
 No test runner is configured.
 
-The legacy `scripts/reset-project.js` (which wipes `app/`, `components/`, `hooks/`, `constants/`) has been moved to `_disabled/scripts/reset-project.js` and removed from `package.json`. Do not run it.
+The Expo template's `scripts/reset-project.js` (which would wipe `app/`, `components/`, `hooks/`, `constants/`) was deleted along with its `package.json` script entry. Do not re-introduce it.
 
 ## Architecture
 
@@ -72,7 +72,6 @@ storage/
   index.ts                 public async API; UI imports only from here
   database.ts              expo-sqlite singleton, migrations, seeder
 server/                    Node proxy (excluded from Expo lint/tsc); see server/README.md
-_disabled/                 quarantined files; do not delete or execute
 ```
 
 ### Theme — single source of truth
